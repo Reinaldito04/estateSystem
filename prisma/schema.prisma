@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DocumentEntityType {
+  OWNER
+  TENANT
+  PROPERTY
+  LEASE
+}
+
+enum PaymentCategory {
+  RENT_CANON
+  RESERVATION
+  SECURITY_DEPOSIT
+  CONTRACT_FEE
+  CONDO_FEE
+  ELECTRICITY
+  INTERNET
+  OTHER_SERVICE
+}
+
+enum IssueStatus {
+  REPORTED
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+enum NotificationType {
+  LEASE_EXPIRATION
+  RENOVATION_PROPOSAL
+  OWNER_NOTICE
+}
+
+model Owner {
+  id             String     @id @default(uuid())
+  fullName       String
+  documentId     String     @unique
+  email          String?
+  phone          String
+  alternatePhone String?
+  address        String?
+  bankDetails    String?
+  properties     Property[]
+  documents      EntityDocument[]
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model Tenant {
+  id                    String          @id @default(uuid())
+  fullName              String
+  documentId            String          @unique
+  email                 String?
+  phone                 String
+  workPlace             String?
+  monthlyIncome         Decimal?        @db.Decimal(12, 2)
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  leases                Lease[]
+  propertyIssues        PropertyIssue[]
+  documents             EntityDocument[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+model EntityDocument {
+  id           String             @id @default(uuid())
+  entityType   DocumentEntityType
+  ownerId      String?
+  owner        Owner?             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tenantId     String?
+  tenant       Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  propertyId   String?
+  property     Property?          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  leaseId      String?
+  lease        Lease?             @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  documentName String
+  fileUrl      String
+  uploadedAt   DateTime           @default(now())
+
+  @@index([entityType, ownerId])
+  @@index([entityType, tenantId])
+  @@index([entityType, propertyId])
+  @@index([entityType, leaseId])
+}
+
+model Property {
+  id                       String          @id @default(uuid())
+  code                     String          @unique
+  ownerId                  String
+  owner                    Owner           @relation(fields: [ownerId], references: [id])
+  title                    String
+  address                  String
+  city                     String
+  condoName                String?
+  condoAccountNumber       String?
+  electricityAccountNumber String?
+  internetProvider         String?
+  internetAccountNumber    String?
+  status                   String          @default("available")
+  photos                   PropertyPhoto[]
+  leases                   Lease[]
+  transactions             Transaction[]
+  issues                   PropertyIssue[]
+  documents                EntityDocument[]
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+}
+
+model PropertyPhoto {
+  id          String   @id @default(uuid())
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  photoUrl    String
+  description String?
+  uploadedAt  DateTime @default(now())
+}
+
+model Lease {
+  id                 String                     @id @default(uuid())
+  propertyId         String
+  property           Property                   @relation(fields: [propertyId], references: [id])
+  tenantId           String
+  tenant             Tenant                     @relation(fields: [tenantId], references: [id])
+  contractNumber     String                     @unique
+  startDate          DateTime
+  endDate            DateTime
+  monthlyCanonAmount Decimal                    @db.Decimal(10, 2)
+  depositAmount      Decimal                    @default(0.00) @db.Decimal(10, 2)
+  reservationAmount  Decimal                    @default(0.00) @db.Decimal(10, 2)
+  contractFeeAmount  Decimal                    @default(0.00) @db.Decimal(10, 2)
+  contractFileUrl    String?
+  isActive           Boolean                    @default(true)
+  transactions       Transaction[]
+  notices            LeaseProposalAndNotice[]
+  documents          EntityDocument[]
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+}
+
+model Transaction {
+  id              String          @id @default(uuid())
+  propertyId      String
+  property        Property        @relation(fields: [propertyId], references: [id])
+  leaseId         String?
+  lease           Lease?          @relation(fields: [leaseId], references: [id])
+  category        PaymentCategory
+  amount          Decimal         @db.Decimal(10, 2)
+  paymentDate     DateTime
+  paymentMethod   String
+  referenceNumber String?
+  receiptUrl      String?
+  description     String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model PropertyIssue {
+  id            String      @id @default(uuid())
+  propertyId    String
+  property      Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  reportDate    DateTime    @default(now())
+  issueType     String
+  description   String
+  status        IssueStatus @default(REPORTED)
+  repairDate    DateTime?
+  repairDetails String?
+  repairCost    Decimal     @default(0.00) @db.Decimal(10, 2)
+  receiptUrl    String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model LeaseProposalAndNotice {
+  id                  String           @id @default(uuid())
+  leaseId             String
+  lease               Lease            @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  noticeType          NotificationType
+  issueDate           DateTime         @default(now())
+  proposedCanonAmount Decimal?         @db.Decimal(10, 2)
+  proposedStartDate   DateTime?
+  proposedEndDate     DateTime?
+  documentUrl         String?
+  notes               String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+}
