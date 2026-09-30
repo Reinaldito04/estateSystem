@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isValidPropertyFilename, removePropertyFile } from "@/lib/property-file-storage";
+import { calculateLeaseBalance } from "@/lib/lease-balance";
 import { z } from "zod";
 
 const propertyUpdateSchema = z.object({
@@ -11,12 +12,25 @@ const propertyUpdateSchema = z.object({
   city: z.string().min(1).optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
+  propertyType: z.string().min(1).optional(),
+  totalAreaSqm: z.number().min(0).nullable().optional(),
+  builtAreaSqm: z.number().min(0).nullable().optional(),
+  bedrooms: z.number().int().min(0).nullable().optional(),
+  bathrooms: z.number().int().min(0).nullable().optional(),
+  parkingSpaces: z.number().int().min(0).nullable().optional(),
+  amenities: z.array(z.string()).optional(),
   customFields: z.record(z.string(), z.string()).optional(),
   condoName: z.string().optional(),
   condoAccountNumber: z.string().optional(),
   electricityAccountNumber: z.string().optional(),
   internetProvider: z.string().optional(),
   internetAccountNumber: z.string().optional(),
+  videoUrl: z.string().optional(),
+  floorPlanUrl: z.string().optional(),
+  virtualTourUrl: z.string().optional(),
+  captureCommission: z.number().min(0).max(100).nullable().optional(),
+  captureExclusive: z.boolean().optional(),
+  captureContractUrl: z.string().optional(),
   status: z.string().optional(),
 });
 
@@ -37,6 +51,7 @@ export async function GET(
         leases: {
           include: {
             tenant: { select: { id: true, fullName: true, phone: true } },
+            transactions: { select: { category: true, amount: true, paymentDate: true } },
           },
           orderBy: { createdAt: "desc" },
         },
@@ -51,6 +66,8 @@ export async function GET(
           orderBy: { reportDate: "desc" },
         },
         documents: { orderBy: { uploadedAt: "desc" } },
+        keys: { orderBy: { assignedAt: "desc" } },
+        visits: { orderBy: { scheduledAt: "desc" } },
         _count: { select: { leases: true, transactions: true, issues: true } },
       },
     });
@@ -59,7 +76,21 @@ export async function GET(
       return NextResponse.json({ error: "Inmueble no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json(property);
+    return NextResponse.json({
+      ...property,
+      leases: property.leases.map(({ transactions, ...lease }) => ({
+        ...lease,
+        balance: calculateLeaseBalance(
+          lease.startDate,
+          lease.endDate,
+          Number(lease.monthlyCanonAmount),
+          transactions.map((transaction) => ({
+            ...transaction,
+            amount: Number(transaction.amount),
+          })),
+        ),
+      })),
+    });
   } catch (error) {
     console.error("Error fetching property:", error);
     return NextResponse.json({ error: "Error al obtener inmueble" }, { status: 500 });

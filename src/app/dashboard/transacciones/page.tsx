@@ -34,7 +34,6 @@ import {
   Search,
   Edit,
   Trash2,
-  Eye,
   Loader2,
   DollarSign,
   TrendingUp,
@@ -88,6 +87,7 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [propertyFilter, setPropertyFilter] = useState("");
+  const [leaseFilter, setLeaseFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -113,7 +113,12 @@ export default function TransactionsPage() {
         limit: pagination.limit.toString(),
         ...(search && { search }),
         ...(categoryFilter && { category: categoryFilter }),
-        ...(propertyFilter && { propertyId: propertyFilter }),
+        ...((propertyFilter || new URLSearchParams(window.location.search).get("propertyId")) && {
+          propertyId: propertyFilter || new URLSearchParams(window.location.search).get("propertyId") || "",
+        }),
+        ...((leaseFilter || new URLSearchParams(window.location.search).get("leaseId")) && {
+          leaseId: leaseFilter || new URLSearchParams(window.location.search).get("leaseId") || "",
+        }),
       });
       const response = await fetch(`/api/transactions?${params}`);
       if (response.ok) {
@@ -157,7 +162,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [pagination.page, search, categoryFilter, propertyFilter]);
+  }, [pagination.page, search, categoryFilter, propertyFilter, leaseFilter]);
 
   useEffect(() => {
     fetchProperties();
@@ -252,6 +257,18 @@ export default function TransactionsPage() {
 
   const getCategoryLabel = (category: string) => {
     return PAYMENT_CATEGORIES.find((c) => c.value === category)?.label || category;
+  };
+
+  const handleLeaseFilterChange = (value: string) => {
+    const nextValue = value === "all" ? "" : value;
+    setLeaseFilter(nextValue);
+    const url = new URL(window.location.href);
+    if (nextValue) {
+      url.searchParams.set("leaseId", nextValue);
+    } else {
+      url.searchParams.delete("leaseId");
+    }
+    window.history.replaceState({}, "", url);
   };
 
   const getCategoryBadge = (category: string) => {
@@ -464,7 +481,7 @@ export default function TransactionsPage() {
                   className="pl-10 w-64"
                 />
               </div>
-              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <Select value={categoryFilter} onValueChange={(value) => setCategoryFilter(value === "all" ? "" : value)}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Categoría" />
                 </SelectTrigger>
@@ -472,6 +489,28 @@ export default function TransactionsPage() {
                   <SelectItem value="all">Todas</SelectItem>
                   {PAYMENT_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={propertyFilter} onValueChange={(value) => setPropertyFilter(value === "all" ? "" : value)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Inmueble" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los inmuebles</SelectItem>
+                  {properties.map((property) => (
+                    <SelectItem key={property.id} value={property.id}>{property.code} - {property.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={leaseFilter} onValueChange={handleLeaseFilterChange}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Contrato" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los contratos</SelectItem>
+                  {leases.map((lease) => (
+                    <SelectItem key={lease.id} value={lease.id}>{lease.contractNumber}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -500,9 +539,12 @@ export default function TransactionsPage() {
                     <TableRow>
                       <TableHead>Fecha</TableHead>
                       <TableHead>Inmueble</TableHead>
+                      <TableHead>Contrato</TableHead>
                       <TableHead>Categoría</TableHead>
                       <TableHead>Método</TableHead>
                       <TableHead>Referencia</TableHead>
+                      <TableHead>Detalle</TableHead>
+                      <TableHead>Comprobante</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
@@ -515,9 +557,22 @@ export default function TransactionsPage() {
                           <div>{transaction.property.code}</div>
                           <div className="text-sm text-muted-foreground">{transaction.property.title}</div>
                         </TableCell>
+                        <TableCell>
+                          {transaction.lease ? (
+                            <Link href={`/dashboard/contratos/${transaction.lease.id}`} className="font-medium text-primary hover:underline">
+                              {transaction.lease.contractNumber}
+                            </Link>
+                          ) : <span className="text-muted-foreground">Sin contrato</span>}
+                        </TableCell>
                         <TableCell>{getCategoryBadge(transaction.category)}</TableCell>
                         <TableCell>{transaction.paymentMethod}</TableCell>
                         <TableCell>{transaction.referenceNumber || "-"}</TableCell>
+                        <TableCell className="max-w-52 truncate" title={transaction.description || undefined}>{transaction.description || "-"}</TableCell>
+                        <TableCell>
+                          {transaction.receiptUrl ? (
+                            <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver</a>
+                          ) : <span className="text-muted-foreground">-</span>}
+                        </TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(transaction.amount)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">

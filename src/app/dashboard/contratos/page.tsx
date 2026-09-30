@@ -54,8 +54,29 @@ interface Lease {
   contractFeeAmount: string;
   contractFileUrl: string | null;
   isActive: boolean;
+  contractStatus: string;
+  renewalMode: string;
+  renewalNoticeDays: number;
+  priceAdjustmentType: string;
+  priceAdjustmentValue: string | null;
+  priceAdjustmentIndex: string | null;
+  nextAdjustmentDate: string | null;
+  guarantorRequired: boolean;
+  guarantorName: string | null;
+  guarantorDocumentId: string | null;
+  guarantorPhone: string | null;
+  guarantorEmail: string | null;
+  signatureStatus: string;
+  signatureProvider: string | null;
   property: { id: string; code: string; title: string; address: string };
   tenant: { id: string; fullName: string; phone: string; email: string | null };
+    balance: {
+      rentDue: number;
+      paidRent: number;
+      debtAmount: number;
+      overdueInstallments: number;
+      debtDays: number;
+    };
   createdAt: string;
   _count: { transactions: number; notices: number };
 }
@@ -104,6 +125,19 @@ export default function LeasesPage() {
     reservationAmount: "",
     contractFeeAmount: "",
     contractFileUrl: "",
+    contractStatus: "DRAFT",
+    renewalMode: "MANUAL",
+    renewalNoticeDays: "30",
+    priceAdjustmentType: "NONE",
+    priceAdjustmentValue: "",
+    priceAdjustmentIndex: "",
+    nextAdjustmentDate: "",
+    guarantorRequired: false,
+    guarantorName: "",
+    guarantorDocumentId: "",
+    guarantorPhone: "",
+    guarantorEmail: "",
+    signatureProvider: "",
     isActive: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -181,6 +215,10 @@ export default function LeasesPage() {
           depositAmount: parseFloat(formData.depositAmount) || 0,
           reservationAmount: parseFloat(formData.reservationAmount) || 0,
           contractFeeAmount: parseFloat(formData.contractFeeAmount) || 0,
+          renewalNoticeDays: parseInt(formData.renewalNoticeDays, 10) || 30,
+          priceAdjustmentValue: formData.priceAdjustmentValue ? parseFloat(formData.priceAdjustmentValue) : null,
+          nextAdjustmentDate: formData.nextAdjustmentDate || null,
+          guarantorEmail: formData.guarantorEmail || undefined,
         }),
       });
       if (response.ok) {
@@ -215,6 +253,19 @@ export default function LeasesPage() {
       reservationAmount: lease.reservationAmount,
       contractFeeAmount: lease.contractFeeAmount,
       contractFileUrl: lease.contractFileUrl || "",
+      contractStatus: lease.contractStatus,
+      renewalMode: lease.renewalMode,
+      renewalNoticeDays: lease.renewalNoticeDays.toString(),
+      priceAdjustmentType: lease.priceAdjustmentType,
+      priceAdjustmentValue: lease.priceAdjustmentValue || "",
+      priceAdjustmentIndex: lease.priceAdjustmentIndex || "",
+      nextAdjustmentDate: lease.nextAdjustmentDate?.split("T")[0] || "",
+      guarantorRequired: lease.guarantorRequired,
+      guarantorName: lease.guarantorName || "",
+      guarantorDocumentId: lease.guarantorDocumentId || "",
+      guarantorPhone: lease.guarantorPhone || "",
+      guarantorEmail: lease.guarantorEmail || "",
+      signatureProvider: lease.signatureProvider || "",
       isActive: lease.isActive,
     });
     setIsDialogOpen(true);
@@ -249,6 +300,19 @@ export default function LeasesPage() {
       reservationAmount: "",
       contractFeeAmount: "",
       contractFileUrl: "",
+      contractStatus: "DRAFT",
+      renewalMode: "MANUAL",
+      renewalNoticeDays: "30",
+      priceAdjustmentType: "NONE",
+      priceAdjustmentValue: "",
+      priceAdjustmentIndex: "",
+      nextAdjustmentDate: "",
+      guarantorRequired: false,
+      guarantorName: "",
+      guarantorDocumentId: "",
+      guarantorPhone: "",
+      guarantorEmail: "",
+      signatureProvider: "",
       isActive: true,
     });
   };
@@ -259,6 +323,18 @@ export default function LeasesPage() {
   };
 
   const getStatusBadge = (lease: Lease) => {
+    const legalStatus: Record<string, { label: string; className: string }> = {
+      DRAFT: { label: "Borrador", className: "bg-slate-100 text-slate-700" },
+      IN_REVIEW: { label: "En revisión", className: "bg-amber-100 text-amber-800" },
+      PENDING_SIGNATURE: { label: "Pendiente de firma", className: "bg-violet-100 text-violet-800" },
+      ACTIVE: { label: "Activo", className: "bg-emerald-100 text-emerald-800" },
+      EXPIRED: { label: "Vencido", className: "bg-rose-100 text-rose-800" },
+      CANCELLED: { label: "Cancelado", className: "bg-gray-100 text-gray-700" },
+    };
+    if (legalStatus[lease.contractStatus]) {
+      const status = legalStatus[lease.contractStatus];
+      return <span className={`rounded-full px-2 py-1 text-xs font-medium ${status.className}`}>{status.label}</span>;
+    }
     if (!lease.isActive) {
       return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Vencido</span>;
     }
@@ -331,14 +407,18 @@ export default function LeasesPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="isActive">Estado</Label>
-                  <Select value={formData.isActive ? "active" : "inactive"} onValueChange={(v) => setFormData({ ...formData, isActive: v === "active" })}>
+                  <Label htmlFor="contractStatus">Estado legal</Label>
+                  <Select value={formData.contractStatus} onValueChange={(v) => setFormData({ ...formData, contractStatus: v, isActive: v === "ACTIVE" })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="active">Vigente</SelectItem>
-                      <SelectItem value="inactive">Vencido</SelectItem>
+                      <SelectItem value="DRAFT">Borrador</SelectItem>
+                      <SelectItem value="IN_REVIEW">En revisión</SelectItem>
+                      <SelectItem value="PENDING_SIGNATURE">Pendiente de firma</SelectItem>
+                      <SelectItem value="ACTIVE">Activo</SelectItem>
+                      <SelectItem value="EXPIRED">Vencido</SelectItem>
+                      <SelectItem value="CANCELLED">Cancelado</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -408,10 +488,30 @@ export default function LeasesPage() {
                       type="number"
                       step="0.01"
                       value={formData.contractFeeAmount}
-                      onChange={(e) => setFormData({ ...formData, contractFileUrl: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, contractFeeAmount: e.target.value })}
                       placeholder="0"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="mb-3 font-medium">Renovación y reajuste</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="renewalMode">Renovación</Label><Select value={formData.renewalMode} onValueChange={(value) => setFormData({ ...formData, renewalMode: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="MANUAL">Manual</SelectItem><SelectItem value="AUTOMATIC">Automática</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="renewalNoticeDays">Avisar con (días)</Label><Input id="renewalNoticeDays" type="number" min="1" max="365" value={formData.renewalNoticeDays} onChange={(event) => setFormData({ ...formData, renewalNoticeDays: event.target.value })} /></div>
+                  <div className="space-y-2"><Label htmlFor="priceAdjustmentType">Cláusula de ajuste</Label><Select value={formData.priceAdjustmentType} onValueChange={(value) => setFormData({ ...formData, priceAdjustmentType: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NONE">Sin ajuste</SelectItem><SelectItem value="IPC">IPC</SelectItem><SelectItem value="FIXED_PERCENT">Porcentaje fijo</SelectItem><SelectItem value="INDEX">Índice configurable</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label htmlFor="priceAdjustmentValue">Valor del ajuste (%)</Label><Input id="priceAdjustmentValue" type="number" min="0" step="0.01" value={formData.priceAdjustmentValue} onChange={(event) => setFormData({ ...formData, priceAdjustmentValue: event.target.value })} placeholder="0" /></div>
+                  <div className="space-y-2"><Label htmlFor="priceAdjustmentIndex">Índice de referencia</Label><Input id="priceAdjustmentIndex" value={formData.priceAdjustmentIndex} onChange={(event) => setFormData({ ...formData, priceAdjustmentIndex: event.target.value })} placeholder="IPC Venezuela, INPC..." /></div>
+                  <div className="space-y-2"><Label htmlFor="nextAdjustmentDate">Próximo reajuste</Label><Input id="nextAdjustmentDate" type="date" value={formData.nextAdjustmentDate} onChange={(event) => setFormData({ ...formData, nextAdjustmentDate: event.target.value })} /></div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="mb-3 font-medium">Garantías y fiador</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex items-center gap-3 md:col-span-2"><input id="guarantorRequired" type="checkbox" checked={formData.guarantorRequired} onChange={(event) => setFormData({ ...formData, guarantorRequired: event.target.checked })} className="h-4 w-4 accent-primary" /><Label htmlFor="guarantorRequired">Este contrato requiere fiador o aval</Label></div>
+                  {formData.guarantorRequired && <><Input placeholder="Nombre del fiador" value={formData.guarantorName} onChange={(event) => setFormData({ ...formData, guarantorName: event.target.value })} required /><Input placeholder="Documento del fiador" value={formData.guarantorDocumentId} onChange={(event) => setFormData({ ...formData, guarantorDocumentId: event.target.value })} /><Input placeholder="Teléfono del fiador" value={formData.guarantorPhone} onChange={(event) => setFormData({ ...formData, guarantorPhone: event.target.value })} /><Input type="email" placeholder="Correo del fiador" value={formData.guarantorEmail} onChange={(event) => setFormData({ ...formData, guarantorEmail: event.target.value })} /></>}
                 </div>
               </div>
 
@@ -423,6 +523,10 @@ export default function LeasesPage() {
                   onChange={(e) => setFormData({ ...formData, contractFileUrl: e.target.value })}
                   placeholder="https://..."
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signatureProvider">Proveedor de firma electrónica</Label>
+                <Input id="signatureProvider" value={formData.signatureProvider} onChange={(event) => setFormData({ ...formData, signatureProvider: event.target.value })} placeholder="DocuSign, Signaturit, firma interna..." />
               </div>
 
               <DialogFooter>
@@ -491,6 +595,8 @@ export default function LeasesPage() {
                       <TableHead>Inmueble</TableHead>
                       <TableHead>Inquilino</TableHead>
                       <TableHead>Canon</TableHead>
+                                            <TableHead>Deuda</TableHead>
+                                            <TableHead>Días deuda</TableHead>
                       <TableHead>Vigencia</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
@@ -514,6 +620,19 @@ export default function LeasesPage() {
                           <div className="text-sm text-muted-foreground">{lease.tenant.phone}</div>
                         </TableCell>
                         <TableCell>{formatCurrency(lease.monthlyCanonAmount)}</TableCell>
+                                                <TableCell>
+                                                  <span className={lease.balance.debtAmount > 0 ? "font-semibold text-red-600" : "text-emerald-600"}>
+                                                    {formatCurrency(lease.balance.debtAmount)}
+                                                  </span>
+                                                  <div className="text-xs text-muted-foreground">
+                                                    {lease.balance.overdueInstallments} cuota{lease.balance.overdueInstallments === 1 ? "" : "s"}
+                                                  </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  <span className={lease.balance.debtDays > 0 ? "font-semibold text-red-600" : "text-emerald-600"}>
+                                                    {lease.balance.debtDays}
+                                                  </span>
+                                                </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 text-sm">
                             <Calendar className="h-3 w-3" />

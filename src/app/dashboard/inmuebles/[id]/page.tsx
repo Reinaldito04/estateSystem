@@ -22,13 +22,39 @@ import {
   Zap,
   Wifi,
   Home,
-  DollarSign,
-  AlertTriangle,
+  KeyRound,
+  CalendarDays,
+  ClipboardList,
+  ExternalLink,
   Loader2,
 } from "lucide-react";
-import { formatCurrency, formatDate, PAYMENT_CATEGORIES } from "@/lib/utils";
+import { formatCurrency, formatDate, formatDateTime, PAYMENT_CATEGORIES } from "@/lib/utils";
 import { PropertyCrmPanel } from "@/components/properties/property-crm-panel";
 import { PropertyLocationMap, PropertyPhotoGallery } from "@/components/properties/property-visuals";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const PROPERTY_STATUS_LABELS: Record<string, string> = {
+  available: "Disponible",
+  reserved: "Reservado",
+  rented: "Alquilado",
+  occupied: "Ocupado",
+  sold: "Vendido",
+  maintenance: "En mantenimiento",
+  suspended: "Suspendido",
+  unavailable: "No disponible",
+};
+
+const PROPERTY_TYPE_LABELS: Record<string, string> = {
+  APARTMENT: "Apartamento",
+  HOUSE: "Casa",
+  TOWNHOUSE: "Townhouse",
+  OFFICE: "Oficina",
+  COMMERCIAL: "Local comercial",
+  LAND: "Terreno",
+};
 
 interface Property {
   id: string;
@@ -38,6 +64,19 @@ interface Property {
   city: string;
   latitude: number | null;
   longitude: number | null;
+  propertyType: string;
+  totalAreaSqm: number | null;
+  builtAreaSqm: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  parkingSpaces: number | null;
+  amenities: string[];
+  captureCommission: string | null;
+  captureExclusive: boolean;
+  captureContractUrl: string | null;
+  videoUrl: string | null;
+  floorPlanUrl: string | null;
+  virtualTourUrl: string | null;
   status: string;
   condoName: string | null;
   condoAccountNumber: string | null;
@@ -55,6 +94,13 @@ interface Property {
     monthlyCanonAmount: string;
     isActive: boolean;
     tenant: { id: string; fullName: string; phone: string };
+      balance: {
+        rentDue: number;
+        paidRent: number;
+        debtAmount: number;
+        overdueInstallments: number;
+        debtDays: number;
+      };
   }[];
   transactions: {
     id: string;
@@ -74,6 +120,8 @@ interface Property {
     tenant: { id: string; fullName: string };
   }[];
   documents: { id: string; documentName: string; fileUrl: string; uploadedAt: string }[];
+  keys: { id: string; holderName: string; holderRole: string; keyCount: number; accessCode: string | null; notes: string | null; assignedAt: string; returnedAt: string | null; isActive: boolean }[];
+  visits: { id: string; visitorName: string; visitorPhone: string | null; visitorEmail: string | null; purpose: string | null; scheduledAt: string; visitedAt: string | null; status: string; notes: string | null }[];
   _count: { leases: number; transactions: number; issues: number };
 }
 
@@ -81,6 +129,10 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
   const { id } = use(params);
   const [property, setProperty] = useState<Property | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [keyForm, setKeyForm] = useState({ holderName: "", holderRole: "Equipo", keyCount: "1", accessCode: "", notes: "" });
+  const [visitForm, setVisitForm] = useState({ visitorName: "", visitorPhone: "", visitorEmail: "", purpose: "", scheduledAt: "", notes: "" });
+  const [isSavingRecord, setIsSavingRecord] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -98,6 +150,50 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
     };
     fetchProperty();
   }, [id]);
+
+  const createKeyRecord = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!property) return;
+    setIsSavingRecord(true);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/keys`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...keyForm, keyCount: parseInt(keyForm.keyCount, 10) || 1 }) });
+      if (!response.ok) throw new Error("No se pudo registrar la llave");
+      const key = await response.json();
+      setProperty({ ...property, keys: [key, ...property.keys] });
+      setKeyForm({ holderName: "", holderRole: "Equipo", keyCount: "1", accessCode: "", notes: "" });
+      toast({ title: "Llaves registradas", description: "La asignación quedó guardada en la bitácora." });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "No se pudo registrar la llave", variant: "destructive" });
+    } finally { setIsSavingRecord(false); }
+  };
+
+  const returnKeyRecord = async (keyId: string) => {
+    if (!property) return;
+    const response = await fetch(`/api/properties/${property.id}/keys/${keyId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ returnedAt: new Date().toISOString(), isActive: false }) });
+    if (response.ok) setProperty({ ...property, keys: property.keys.map((key) => key.id === keyId ? { ...key, returnedAt: new Date().toISOString(), isActive: false } : key) });
+  };
+
+  const createVisitRecord = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!property) return;
+    setIsSavingRecord(true);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/visits`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(visitForm) });
+      if (!response.ok) throw new Error("No se pudo registrar la visita");
+      const visit = await response.json();
+      setProperty({ ...property, visits: [visit, ...property.visits] });
+      setVisitForm({ visitorName: "", visitorPhone: "", visitorEmail: "", purpose: "", scheduledAt: "", notes: "" });
+      toast({ title: "Visita registrada", description: "La visita quedó añadida a la bitácora." });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "No se pudo registrar la visita", variant: "destructive" });
+    } finally { setIsSavingRecord(false); }
+  };
+
+  const updateVisitStatus = async (visitId: string, status: string) => {
+    if (!property) return;
+    const response = await fetch(`/api/properties/${property.id}/visits/${visitId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, ...(status === "completed" ? { visitedAt: new Date().toISOString() } : {}) }) });
+    if (response.ok) setProperty({ ...property, visits: property.visits.map((visit) => visit.id === visitId ? { ...visit, status, visitedAt: status === "completed" ? new Date().toISOString() : visit.visitedAt } : visit) });
+  };
 
   if (isLoading) {
     return (
@@ -122,7 +218,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-10">
+    <div className="mx-auto max-w-7xl space-y-6 pb-10">
       <header className="flex flex-col gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
         <Button asChild variant="outline" size="icon" className="mt-1 shrink-0 rounded-full">
@@ -134,12 +230,35 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-primary">{property.code}</p>
           <h1 className="mt-1 text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{property.title}</h1>
           <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><span>{property.address}, {property.city}</span></p>
+          <div className="mt-3 flex flex-wrap gap-2 text-xs font-medium text-muted-foreground">
+            <span className="rounded-full border bg-background px-2.5 py-1">{PROPERTY_TYPE_LABELS[property.propertyType] || property.propertyType}</span>
+            {property.totalAreaSqm && <span className="rounded-full border bg-background px-2.5 py-1">{property.totalAreaSqm} m² totales</span>}
+            {property.bedrooms !== null && <span className="rounded-full border bg-background px-2.5 py-1">{property.bedrooms} habitaciones</span>}
+            {property.bathrooms !== null && <span className="rounded-full border bg-background px-2.5 py-1">{property.bathrooms} baños</span>}
+          </div>
         </div>
         </div>
-        <Badge variant={property.status === "available" ? "success" : "secondary"} className="w-fit shrink-0 px-3 py-1.5 text-sm">
-          {property.status === "available" ? "Disponible" : property.status === "occupied" ? "Ocupado" : property.status === "maintenance" ? "En mantenimiento" : property.status === "unavailable" ? "No disponible" : property.status}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Badge variant={property.status === "available" ? "success" : "secondary"} className="px-3 py-1.5 text-sm">
+            {PROPERTY_STATUS_LABELS[property.status] || property.status}
+          </Badge>
+          <Button asChild variant="outline" size="sm"><Link href={`/dashboard/transacciones?propertyId=${property.id}`}>Transacciones</Link></Button>
+          <Button asChild variant="outline" size="sm"><Link href="/dashboard/contratos">Contratos</Link></Button>
+        </div>
       </header>
+
+      <section aria-labelledby="property-summary-heading" className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Resumen ejecutivo</p><h2 id="property-summary-heading" className="mt-1 text-lg font-semibold">Estado actual del inmueble</h2></div>
+          <p className="hidden text-xs text-muted-foreground sm:block">Actualizado recientemente</p>
+        </div>
+        <dl className="grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-4">
+          <div className="border-b p-4 sm:border-b-0 sm:border-r sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Propietario</dt><dd className="mt-2 truncate font-medium">{property.owner.fullName}</dd></div>
+          <div className="border-b p-4 sm:border-b-0 sm:border-r sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contratos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.leases}</dd></div>
+          <div className="border-r p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transacciones</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.transactions}</dd></div>
+          <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Averías</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.issues}</dd></div>
+        </dl>
+      </section>
 
       <section className="grid gap-4 lg:grid-cols-[1.6fr_0.9fr]">
         <PropertyPhotoGallery title={property.title} photos={property.photos} />
@@ -160,17 +279,48 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
         )}
       </section>
 
-      <dl className="grid grid-cols-2 divide-x divide-y divide-border/70 overflow-hidden rounded-lg border bg-card sm:grid-cols-4 sm:divide-y-0">
-        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Propietario</dt><dd className="mt-2 truncate font-medium">{property.owner.fullName}</dd></div>
-        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contratos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.leases}</dd></div>
-        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transacciones</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.transactions}</dd></div>
-        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Averías</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.issues}</dd></div>
-      </dl>
+      {(property.videoUrl || property.floorPlanUrl || property.virtualTourUrl) && <Card>
+        <CardHeader><CardTitle>Material multimedia</CardTitle></CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          {property.videoUrl && <a href={property.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:border-primary/50 hover:bg-muted/40"><ExternalLink className="h-4 w-4 text-primary" />Video del inmueble</a>}
+          {property.floorPlanUrl && <a href={property.floorPlanUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:border-primary/50 hover:bg-muted/40"><ExternalLink className="h-4 w-4 text-primary" />Ver plano</a>}
+          {property.virtualTourUrl && <a href={property.virtualTourUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:border-primary/50 hover:bg-muted/40"><ExternalLink className="h-4 w-4 text-primary" />Recorrido virtual</a>}
+        </CardContent>
+      </Card>}
 
+      <section aria-labelledby="property-profile-heading" className="space-y-3">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Perfil del inmueble</p><h2 id="property-profile-heading" className="mt-1 text-lg font-semibold">Ficha técnica y condiciones</h2></div>
+      <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Ficha técnica</CardTitle></CardHeader>
+          <CardContent>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+              <div><dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Tipo</dt><dd className="mt-1 font-medium">{PROPERTY_TYPE_LABELS[property.propertyType] || property.propertyType || "No definido"}</dd></div>
+              <div><dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Área total</dt><dd className="mt-1 font-medium">{property.totalAreaSqm ? `${property.totalAreaSqm} m²` : "No definida"}</dd></div>
+              <div><dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Construida</dt><dd className="mt-1 font-medium">{property.builtAreaSqm ? `${property.builtAreaSqm} m²` : "No definida"}</dd></div>
+              <div><dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Distribución</dt><dd className="mt-1 font-medium">{property.bedrooms ?? "-"} hab. · {property.bathrooms ?? "-"} baños</dd></div>
+              <div><dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Estacionamientos</dt><dd className="mt-1 font-medium">{property.parkingSpaces ?? "No definido"}</dd></div>
+              <div className="col-span-2 sm:col-span-3"><dt className="text-xs uppercase tracking-[0.1em] text-muted-foreground">Amenidades</dt><dd className="mt-1 flex flex-wrap gap-1.5">{property.amenities.length > 0 ? property.amenities.map((amenity) => <Badge key={amenity} variant="secondary">{amenity}</Badge>) : <span className="font-medium">No registradas</span>}</dd></div>
+            </dl>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Captación</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div><p className="text-sm text-muted-foreground">Comisión acordada</p><p className="mt-1 text-2xl font-semibold">{property.captureCommission ? `${property.captureCommission}%` : "No definida"}</p></div>
+            <div><p className="text-sm text-muted-foreground">Modalidad</p><p className="mt-1 font-medium">{property.captureExclusive ? "Exclusiva" : "No exclusiva"}</p></div>
+            {property.captureContractUrl && <a href={property.captureContractUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"><ExternalLink className="h-4 w-4" />Ver contrato de captación</a>}
+          </CardContent>
+        </Card>
+      </div>
+      </section>
+
+      <section aria-labelledby="property-contacts-heading" className="space-y-3">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Relaciones</p><h2 id="property-contacts-heading" className="mt-1 text-lg font-semibold">Servicios y propietario</h2></div>
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Datos de Servicios</CardTitle>
+            <CardTitle className="text-base">Datos de servicios</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {property.condoName && (
@@ -207,7 +357,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
 
         <Card>
           <CardHeader>
-            <CardTitle>Propietario</CardTitle>
+            <CardTitle className="text-base">Propietario</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">
@@ -236,12 +386,56 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           </CardContent>
         </Card>
       </div>
+      </section>
 
-      <PropertyCrmPanel propertyId={property.id} />
+      <section aria-labelledby="property-crm-heading" className="space-y-3">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Seguimiento comercial</p><h2 id="property-crm-heading" className="mt-1 text-lg font-semibold">Actividad CRM</h2></div>
+        <PropertyCrmPanel propertyId={property.id} />
+      </section>
+
+      <section aria-labelledby="property-control-heading" className="space-y-3">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Control operativo</p><h2 id="property-control-heading" className="mt-1 text-lg font-semibold">Expediente y accesos</h2></div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Expediente digital</CardTitle></CardHeader>
+          <CardContent>
+            {property.documents.length === 0 ? <p className="text-sm text-muted-foreground">No hay documentos cargados. Puedes añadirlos desde Documentos vinculándolos a este inmueble.</p> : <div className="space-y-2">{property.documents.map((document) => <a key={document.id} href={document.fileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 transition-colors hover:border-primary/50 hover:bg-muted/40"><span className="min-w-0 truncate text-sm font-medium">{document.documentName}</span><span className="shrink-0 text-xs text-muted-foreground">{formatDate(document.uploadedAt)}</span></a>)}</div>}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Control de llaves</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={createKeyRecord} className="grid gap-2 sm:grid-cols-[1.4fr_1fr_0.5fr_auto]">
+              <Input required placeholder="Responsable" value={keyForm.holderName} onChange={(event) => setKeyForm({ ...keyForm, holderName: event.target.value })} aria-label="Responsable de las llaves" />
+              <Input required placeholder="Rol" value={keyForm.holderRole} onChange={(event) => setKeyForm({ ...keyForm, holderRole: event.target.value })} aria-label="Rol del responsable" />
+              <Input required type="number" min="1" placeholder="Cant." value={keyForm.keyCount} onChange={(event) => setKeyForm({ ...keyForm, keyCount: event.target.value })} aria-label="Cantidad de llaves" />
+              <Button type="submit" disabled={isSavingRecord} size="icon" aria-label="Registrar llaves" title="Registrar llaves"><KeyRound className="h-4 w-4" /></Button>
+            </form>
+            {property.keys.length === 0 ? <p className="text-sm text-muted-foreground">No hay asignaciones registradas.</p> : <div className="space-y-2">{property.keys.slice(0, 5).map((key) => <div key={key.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5"><div><p className="text-sm font-medium">{key.holderName} <span className="font-normal text-muted-foreground">· {key.holderRole}</span></p><p className="text-xs text-muted-foreground">{key.keyCount} llave{key.keyCount === 1 ? "" : "s"} · {key.isActive ? "En posesión" : `Devuelta ${formatDate(key.returnedAt || key.assignedAt)}`}</p></div>{key.isActive && <Button type="button" size="sm" variant="outline" onClick={() => returnKeyRecord(key.id)}>Marcar devolución</Button>}</div>)}</div>}
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
+        <CardHeader><CardTitle className="text-base">Bitácora de visitas</CardTitle></CardHeader>
+        <CardContent className="space-y-5">
+          <form onSubmit={createVisitRecord} className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+            <div className="space-y-1"><Label htmlFor="visitorName">Visitante *</Label><Input id="visitorName" required value={visitForm.visitorName} onChange={(event) => setVisitForm({ ...visitForm, visitorName: event.target.value })} placeholder="Nombre completo" /></div>
+            <div className="space-y-1"><Label htmlFor="visitorPhone">Teléfono</Label><Input id="visitorPhone" value={visitForm.visitorPhone} onChange={(event) => setVisitForm({ ...visitForm, visitorPhone: event.target.value })} placeholder="+58..." /></div>
+            <div className="space-y-1"><Label htmlFor="visitPurpose">Motivo</Label><Input id="visitPurpose" value={visitForm.purpose} onChange={(event) => setVisitForm({ ...visitForm, purpose: event.target.value })} placeholder="Inspección, muestra..." /></div>
+            <div className="space-y-1"><Label htmlFor="scheduledAt">Fecha y hora *</Label><Input id="scheduledAt" required type="datetime-local" value={visitForm.scheduledAt} onChange={(event) => setVisitForm({ ...visitForm, scheduledAt: event.target.value })} /></div>
+            <Button type="submit" disabled={isSavingRecord} className="self-end"><CalendarDays className="mr-2 h-4 w-4" />Agendar visita</Button>
+          </form>
+          {property.visits.length === 0 ? <div className="flex items-center gap-3 border-t pt-4 text-sm text-muted-foreground"><ClipboardList className="h-4 w-4" />No hay visitas en la bitácora.</div> : <div className="overflow-x-auto border-t pt-4"><Table><TableHeader><TableRow><TableHead>Visitante</TableHead><TableHead>Fecha programada</TableHead><TableHead>Motivo</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acción</TableHead></TableRow></TableHeader><TableBody>{property.visits.map((visit) => <TableRow key={visit.id}><TableCell><p className="font-medium">{visit.visitorName}</p>{visit.visitorPhone && <p className="text-xs text-muted-foreground">{visit.visitorPhone}</p>}</TableCell><TableCell>{formatDateTime(visit.scheduledAt)}</TableCell><TableCell>{visit.purpose || "-"}</TableCell><TableCell><Badge variant={visit.status === "completed" ? "success" : visit.status === "cancelled" ? "destructive" : "secondary"}>{visit.status === "scheduled" ? "Programada" : visit.status === "completed" ? "Realizada" : visit.status === "cancelled" ? "Cancelada" : "No asistió"}</Badge></TableCell><TableCell className="text-right">{visit.status === "scheduled" && <Select value={visit.status} onValueChange={(value) => updateVisitStatus(visit.id, value)}><SelectTrigger className="ml-auto w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Realizada</SelectItem><SelectItem value="cancelled">Cancelada</SelectItem><SelectItem value="no_show">No asistió</SelectItem></SelectContent></Select>}</TableCell></TableRow>)}</TableBody></Table></div>}
+        </CardContent>
+      </Card>
+      </section>
+
+      <section aria-labelledby="property-activity-heading" className="space-y-3">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Actividad financiera y mantenimiento</p><h2 id="property-activity-heading" className="mt-1 text-lg font-semibold">Operación del inmueble</h2></div>
+      <Card>
         <CardHeader>
-          <CardTitle>Contratos del Inmueble</CardTitle>
+          <CardTitle className="text-base">Contratos del inmueble</CardTitle>
         </CardHeader>
         <CardContent>
           {property.leases.length === 0 ? (
@@ -254,6 +448,8 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
                     <TableHead>Contrato</TableHead>
                     <TableHead>Inquilino</TableHead>
                     <TableHead>Canon</TableHead>
+                                        <TableHead>Deuda</TableHead>
+                                        <TableHead>Días con deuda</TableHead>
                     <TableHead>Vigencia</TableHead>
                     <TableHead>Estado</TableHead>
                   </TableRow>
@@ -264,6 +460,19 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
                       <TableCell className="font-medium">{lease.contractNumber}</TableCell>
                       <TableCell>{lease.tenant.fullName}</TableCell>
                       <TableCell>{formatCurrency(lease.monthlyCanonAmount)}</TableCell>
+                                            <TableCell>
+                                              <span className={lease.balance.debtAmount > 0 ? "font-semibold text-red-600" : "text-emerald-600"}>
+                                                {formatCurrency(lease.balance.debtAmount)}
+                                              </span>
+                                              <div className="text-xs text-muted-foreground">
+                                                {lease.balance.overdueInstallments} cuota{lease.balance.overdueInstallments === 1 ? "" : "s"}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell>
+                                              <span className={lease.balance.debtDays > 0 ? "font-semibold text-red-600" : "text-emerald-600"}>
+                                                {lease.balance.debtDays}
+                                              </span>
+                                            </TableCell>
                       <TableCell>{formatDate(lease.startDate)} - {formatDate(lease.endDate)}</TableCell>
                       <TableCell>
                         <Badge variant={lease.isActive ? "success" : "secondary"}>
@@ -281,7 +490,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
 
       <Card>
         <CardHeader>
-          <CardTitle>Últimas Transacciones</CardTitle>
+          <CardTitle className="text-base">Últimas transacciones</CardTitle>
         </CardHeader>
         <CardContent>
           {property.transactions.length === 0 ? (
@@ -315,7 +524,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
 
       <Card>
         <CardHeader>
-          <CardTitle>Averías del Inmueble</CardTitle>
+          <CardTitle className="text-base">Averías del inmueble</CardTitle>
         </CardHeader>
         <CardContent>
           {property.issues.length === 0 ? (
@@ -352,6 +561,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           )}
         </CardContent>
       </Card>
+      </section>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { calculateLeaseBalance } from "@/lib/lease-balance";
 
 const leaseSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
@@ -15,6 +16,25 @@ const leaseSchema = z.object({
   contractFeeAmount: z.number().min(0).default(0),
   contractFileUrl: z.string().optional(),
   isActive: z.boolean().default(true),
+  contractStatus: z.enum(["DRAFT", "IN_REVIEW", "PENDING_SIGNATURE", "ACTIVE", "EXPIRED", "CANCELLED"]).default("DRAFT"),
+  renewalMode: z.enum(["MANUAL", "AUTOMATIC"]).default("MANUAL"),
+  renewalNoticeDays: z.number().int().min(1).max(365).default(30),
+  priceAdjustmentType: z.enum(["NONE", "IPC", "FIXED_PERCENT", "INDEX"]).default("NONE"),
+  priceAdjustmentValue: z.number().min(0).nullable().optional(),
+  priceAdjustmentIndex: z.string().optional(),
+  nextAdjustmentDate: z.string().transform((s) => new Date(s)).nullable().optional(),
+  guarantorRequired: z.boolean().default(false),
+  guarantorName: z.string().optional(),
+  guarantorDocumentId: z.string().optional(),
+  guarantorPhone: z.string().optional(),
+  guarantorEmail: z.string().email().optional().or(z.literal("")),
+  templateId: z.string().uuid().nullable().optional(),
+  draftContent: z.string().optional(),
+  signatureProvider: z.string().optional(),
+  signatureEnvelopeId: z.string().optional(),
+  signatureStatus: z.enum(["NOT_REQUIRED", "PENDING", "SENT", "SIGNED", "DECLINED", "EXPIRED"]).default("NOT_REQUIRED"),
+  signedAt: z.string().transform((s) => new Date(s)).nullable().optional(),
+  signedIp: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -59,14 +79,27 @@ export async function GET(request: NextRequest) {
         include: {
           property: { select: { id: true, code: true, title: true, address: true } },
           tenant: { select: { id: true, fullName: true, phone: true, email: true } },
+          transactions: { select: { category: true, amount: true, paymentDate: true } },
           _count: { select: { transactions: true, notices: true } },
+          template: { select: { id: true, name: true, contractType: true } },
         },
       }),
       prisma.lease.count({ where }),
     ]);
 
     return NextResponse.json({
-      data: leases,
+      data: leases.map(({ transactions, ...lease }) => ({
+        ...lease,
+        balance: calculateLeaseBalance(
+          lease.startDate,
+          lease.endDate,
+          Number(lease.monthlyCanonAmount),
+          transactions.map((transaction) => ({
+            ...transaction,
+            amount: Number(transaction.amount),
+          })),
+        ),
+      })),
       pagination: {
         page,
         limit,
@@ -103,6 +136,7 @@ export async function POST(request: NextRequest) {
         depositAmount: new Prisma.Decimal(validatedData.depositAmount),
         reservationAmount: new Prisma.Decimal(validatedData.reservationAmount),
         contractFeeAmount: new Prisma.Decimal(validatedData.contractFeeAmount),
+        priceAdjustmentValue: validatedData.priceAdjustmentValue === null || validatedData.priceAdjustmentValue === undefined ? null : new Prisma.Decimal(validatedData.priceAdjustmentValue),
       },
       include: {
         property: { select: { id: true, code: true, title: true, address: true } },

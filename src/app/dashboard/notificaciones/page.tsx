@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -29,6 +28,7 @@ import {
   Calendar,
   Building2,
   User,
+  ShieldAlert,
 } from "lucide-react";
 import { formatDate, formatCurrency, calculateDaysUntil } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -67,9 +67,22 @@ interface Notice {
   };
 }
 
+interface AutomatedAlert {
+  id: string;
+  kind: string;
+  severity: string;
+  dueDate: string;
+  days: number;
+  title: string;
+  description: string;
+  leaseId?: string;
+  entityId?: string;
+}
+
 export default function NotificationsPage() {
   const [expiringLeases, setExpiringLeases] = useState<ExpiringLease[]>([]);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [automatedAlerts, setAutomatedAlerts] = useState<AutomatedAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -111,9 +124,22 @@ export default function NotificationsPage() {
     }
   };
 
+  const fetchAutomatedAlerts = async () => {
+    try {
+      const response = await fetch("/api/notices/automated?days=90");
+      if (response.ok) {
+        const data = await response.json();
+        setAutomatedAlerts(data.data);
+      }
+    } catch {
+      console.error("Error fetching automated alerts");
+    }
+  };
+
   useEffect(() => {
     fetchExpiringLeases();
     fetchNotices();
+    fetchAutomatedAlerts();
   }, []);
 
   const generateExpirationNotices = async () => {
@@ -128,6 +154,7 @@ export default function NotificationsPage() {
         });
         fetchExpiringLeases();
         fetchNotices();
+        fetchAutomatedAlerts();
       } else {
         toast({ title: "Error", description: "Error al generar notificaciones", variant: "destructive" });
       }
@@ -228,6 +255,13 @@ export default function NotificationsPage() {
           Generar Alertas de Vencimiento
         </Button>
       </div>
+
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><ShieldAlert className="h-5 w-5 text-amber-600" />Alertas automáticas <Badge variant={automatedAlerts.length > 0 ? "warning" : "success"}>{automatedAlerts.length}</Badge></CardTitle></CardHeader>
+        <CardContent>
+          {automatedAlerts.length === 0 ? <p className="text-sm text-muted-foreground">No hay vencimientos, reajustes ni documentos próximos a vencer en los próximos 90 días.</p> : <div className="grid gap-2 md:grid-cols-2">{automatedAlerts.map((alert) => <div key={alert.id} className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 px-3 py-2.5"><div className="min-w-0"><p className="truncate text-sm font-medium">{alert.title}</p><p className="truncate text-xs text-muted-foreground">{alert.description} · {formatDate(alert.dueDate)}</p></div><Badge variant={alert.severity === "high" ? "destructive" : "warning"}>{alert.days} días</Badge></div>)}</div>}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

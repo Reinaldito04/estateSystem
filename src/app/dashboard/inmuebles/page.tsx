@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -34,8 +33,10 @@ import {
   MapPin,
   Grid2X2,
   List,
+  ChevronLeft,
+  ChevronRight,
+  Check,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { LocationPicker } from "@/components/properties/location-picker";
 import { PropertyPortfolioMap, type PropertyMapPoint } from "@/components/properties/property-visuals";
@@ -56,6 +57,19 @@ interface Property {
   city: string;
   latitude: number | null;
   longitude: number | null;
+  propertyType: string;
+  totalAreaSqm: number | null;
+  builtAreaSqm: number | null;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  parkingSpaces: number | null;
+  amenities: string[];
+  captureCommission: string | null;
+  captureExclusive: boolean;
+  captureContractUrl: string | null;
+  videoUrl: string | null;
+  floorPlanUrl: string | null;
+  virtualTourUrl: string | null;
   customFields: Record<string, string>;
   status: string;
   owner: { id: string; fullName: string; phone: string };
@@ -84,9 +98,26 @@ interface Pagination {
 
 const STATUS_OPTIONS = [
   { value: "available", label: "Disponible" },
-  { value: "occupied", label: "Ocupado" },
+  { value: "reserved", label: "Reservado" },
+  { value: "rented", label: "Alquilado" },
+  { value: "sold", label: "Vendido" },
   { value: "maintenance", label: "En Mantenimiento" },
-  { value: "unavailable", label: "No Disponible" },
+  { value: "suspended", label: "Suspendido" },
+];
+
+const PROPERTY_TYPES = [
+  { value: "APARTMENT", label: "Apartamento" },
+  { value: "HOUSE", label: "Casa" },
+  { value: "TOWNHOUSE", label: "Townhouse" },
+  { value: "OFFICE", label: "Oficina" },
+  { value: "COMMERCIAL", label: "Local comercial" },
+  { value: "LAND", label: "Terreno" },
+];
+
+const PROPERTY_FORM_STEPS = [
+  { title: "Identidad y ubicación", description: "Datos básicos y localización" },
+  { title: "Ficha técnica", description: "Distribución, estado y servicios" },
+  { title: "Captación y material", description: "Condiciones y enlaces comerciales" },
 ];
 
 export default function PropertiesPage() {
@@ -118,14 +149,28 @@ export default function PropertiesPage() {
     city: "",
     latitude: null as number | null,
     longitude: null as number | null,
+    propertyType: "APARTMENT",
+    totalAreaSqm: "",
+    builtAreaSqm: "",
+    bedrooms: "",
+    bathrooms: "",
+    parkingSpaces: "",
+    amenities: "",
     condoName: "",
     condoAccountNumber: "",
     electricityAccountNumber: "",
     internetProvider: "",
     internetAccountNumber: "",
+    captureCommission: "",
+    captureExclusive: false,
+    captureContractUrl: "",
+    videoUrl: "",
+    floorPlanUrl: "",
+    virtualTourUrl: "",
     status: "available",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [creationStep, setCreationStep] = useState(0);
   const [customFieldDrafts, setCustomFieldDrafts] = useState<CustomFieldDraft[]>([]);
   const { toast } = useToast();
 
@@ -225,6 +270,13 @@ export default function PropertiesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          totalAreaSqm: formData.totalAreaSqm ? parseFloat(formData.totalAreaSqm) : null,
+          builtAreaSqm: formData.builtAreaSqm ? parseFloat(formData.builtAreaSqm) : null,
+          bedrooms: formData.bedrooms ? parseInt(formData.bedrooms, 10) : null,
+          bathrooms: formData.bathrooms ? parseInt(formData.bathrooms, 10) : null,
+          parkingSpaces: formData.parkingSpaces ? parseInt(formData.parkingSpaces, 10) : null,
+          amenities: formData.amenities.split(",").map((amenity) => amenity.trim()).filter(Boolean),
+          captureCommission: formData.captureCommission ? parseFloat(formData.captureCommission) : null,
           customFields: Object.fromEntries(
             customFieldDrafts
               .filter((field) => field.name.trim())
@@ -264,11 +316,24 @@ export default function PropertiesPage() {
       city: property.city,
       latitude: property.latitude ?? null,
       longitude: property.longitude ?? null,
+      propertyType: property.propertyType || "APARTMENT",
+      totalAreaSqm: property.totalAreaSqm?.toString() || "",
+      builtAreaSqm: property.builtAreaSqm?.toString() || "",
+      bedrooms: property.bedrooms?.toString() || "",
+      bathrooms: property.bathrooms?.toString() || "",
+      parkingSpaces: property.parkingSpaces?.toString() || "",
+      amenities: (property.amenities || []).join(", "),
       condoName: (p.condoName as string) || "",
       condoAccountNumber: (p.condoAccountNumber as string) || "",
       electricityAccountNumber: (p.electricityAccountNumber as string) || "",
       internetProvider: (p.internetProvider as string) || "",
       internetAccountNumber: (p.internetAccountNumber as string) || "",
+      captureCommission: property.captureCommission?.toString() || "",
+      captureExclusive: property.captureExclusive || false,
+      captureContractUrl: property.captureContractUrl || "",
+      videoUrl: property.videoUrl || "",
+      floorPlanUrl: property.floorPlanUrl || "",
+      virtualTourUrl: property.virtualTourUrl || "",
       status: property.status,
     });
     setCustomFieldDrafts(Object.entries(property.customFields || {}).map(([name, value], index) => ({
@@ -305,11 +370,24 @@ export default function PropertiesPage() {
       city: "",
       latitude: null,
       longitude: null,
+      propertyType: "APARTMENT",
+      totalAreaSqm: "",
+      builtAreaSqm: "",
+      bedrooms: "",
+      bathrooms: "",
+      parkingSpaces: "",
+      amenities: "",
       condoName: "",
       condoAccountNumber: "",
       electricityAccountNumber: "",
       internetProvider: "",
       internetAccountNumber: "",
+      captureCommission: "",
+      captureExclusive: false,
+      captureContractUrl: "",
+      videoUrl: "",
+      floorPlanUrl: "",
+      virtualTourUrl: "",
       status: "available",
     });
     setCustomFieldDrafts([]);
@@ -317,15 +395,31 @@ export default function PropertiesPage() {
 
   const handleOpenCreate = () => {
     resetForm();
+    setCreationStep(0);
     setIsDialogOpen(true);
+  };
+
+  const handleOpenEdit = (property: Property) => {
+    setCreationStep(0);
+    handleEdit(property);
+  };
+
+  const goToNextStep = () => {
+    if (creationStep === 0 && (!formData.code.trim() || !formData.ownerId || !formData.title.trim() || !formData.address.trim() || !formData.city.trim())) {
+      toast({ title: "Completa los datos básicos", description: "Código, propietario, título, dirección y ciudad son obligatorios.", variant: "destructive" });
+      return;
+    }
+    setCreationStep((step) => Math.min(step + 1, PROPERTY_FORM_STEPS.length - 1));
   };
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
       available: { label: "Disponible", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
-      occupied: { label: "Ocupado", className: "bg-sky-500/10 text-sky-700 dark:text-sky-300" },
+      reserved: { label: "Reservado", className: "bg-violet-500/10 text-violet-700 dark:text-violet-300" },
+      rented: { label: "Alquilado", className: "bg-sky-500/10 text-sky-700 dark:text-sky-300" },
+      sold: { label: "Vendido", className: "bg-slate-500/10 text-slate-700 dark:text-slate-300" },
       maintenance: { label: "En mantenimiento", className: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
-      unavailable: { label: "No disponible", className: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
+      suspended: { label: "Suspendido", className: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
     };
     const s = statusMap[status] || { label: status, className: "bg-gray-100 text-gray-800" };
     return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${s.className}`}><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{s.label}</span>;
@@ -349,8 +443,20 @@ export default function PropertiesPage() {
             <DialogHeader>
               <DialogTitle>{editingProperty ? "Editar Inmueble" : "Nuevo Inmueble"}</DialogTitle>
             </DialogHeader>
+            <div className="space-y-3 border-b pb-4">
+              <div className="flex items-center justify-between gap-2">
+                {PROPERTY_FORM_STEPS.map((step, index) => (
+                  <div key={step.title} className="flex min-w-0 flex-1 items-center gap-2">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${index === creationStep ? "bg-primary text-primary-foreground" : index < creationStep ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{index < creationStep ? <Check className="h-4 w-4" /> : index + 1}</div>
+                    <div className="hidden min-w-0 sm:block"><p className={`truncate text-xs font-semibold ${index === creationStep ? "text-foreground" : "text-muted-foreground"}`}>{step.title}</p><p className="truncate text-[11px] text-muted-foreground">{step.description}</p></div>
+                    {index < PROPERTY_FORM_STEPS.length - 1 && <div className={`h-px flex-1 ${index < creationStep ? "bg-emerald-400" : "bg-border"}`} />}
+                  </div>
+                ))}
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${((creationStep + 1) / PROPERTY_FORM_STEPS.length) * 100}%` }} /></div>
+            </div>
             <form onSubmit={handleSubmit} className="space-y-4 py-4">
-              <div className="grid gap-4 md:grid-cols-2">
+              {creationStep === 0 && <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="code">Código *</Label>
                   <Input
@@ -404,6 +510,31 @@ export default function PropertiesPage() {
                     placeholder="Caracas"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="propertyType">Tipo de inmueble *</Label>
+                  <Select value={formData.propertyType} onValueChange={(value) => setFormData({ ...formData, propertyType: value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{PROPERTY_TYPES.map((type) => <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="totalAreaSqm">Área total (m²)</Label>
+                  <Input id="totalAreaSqm" type="number" min="0" step="0.01" value={formData.totalAreaSqm} onChange={(event) => setFormData({ ...formData, totalAreaSqm: event.target.value })} placeholder="120" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="builtAreaSqm">Área construida (m²)</Label>
+                  <Input id="builtAreaSqm" type="number" min="0" step="0.01" value={formData.builtAreaSqm} onChange={(event) => setFormData({ ...formData, builtAreaSqm: event.target.value })} placeholder="95" />
+                </div>
+                <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                  <div className="space-y-2"><Label htmlFor="bedrooms">Habitaciones</Label><Input id="bedrooms" type="number" min="0" step="1" value={formData.bedrooms} onChange={(event) => setFormData({ ...formData, bedrooms: event.target.value })} placeholder="3" /></div>
+                  <div className="space-y-2"><Label htmlFor="bathrooms">Baños</Label><Input id="bathrooms" type="number" min="0" step="1" value={formData.bathrooms} onChange={(event) => setFormData({ ...formData, bathrooms: event.target.value })} placeholder="2" /></div>
+                  <div className="space-y-2"><Label htmlFor="parkingSpaces">Estacionamientos</Label><Input id="parkingSpaces" type="number" min="0" step="1" value={formData.parkingSpaces} onChange={(event) => setFormData({ ...formData, parkingSpaces: event.target.value })} placeholder="2" /></div>
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="amenities">Amenidades</Label>
+                  <Input id="amenities" value={formData.amenities} onChange={(event) => setFormData({ ...formData, amenities: event.target.value })} placeholder="Piscina, gimnasio, terraza, vigilancia" />
+                  <p className="text-xs text-muted-foreground">Separa cada amenidad con una coma.</p>
+                </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Ubicación en el mapa</Label>
                   <LocationPicker
@@ -428,8 +559,9 @@ export default function PropertiesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
+              </div>}
 
+              {creationStep === 1 && <>
               <div className="border-t pt-4">
                 <h3 className="font-medium mb-3">Datos de Servicios</h3>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -482,6 +614,35 @@ export default function PropertiesPage() {
               </div>
 
               <div className="border-t pt-4">
+                <h3 className="mb-3 font-medium">Captación y condiciones comerciales</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="captureCommission">Comisión acordada (%)</Label>
+                    <Input id="captureCommission" type="number" min="0" max="100" step="0.01" value={formData.captureCommission} onChange={(event) => setFormData({ ...formData, captureCommission: event.target.value })} placeholder="5" />
+                  </div>
+                  <div className="flex items-center gap-3 pt-7">
+                    <input id="captureExclusive" type="checkbox" checked={formData.captureExclusive} onChange={(event) => setFormData({ ...formData, captureExclusive: event.target.checked })} className="h-4 w-4 rounded border-input accent-primary" />
+                    <Label htmlFor="captureExclusive">Captación exclusiva</Label>
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="captureContractUrl">Contrato de captación (URL)</Label>
+                    <Input id="captureContractUrl" value={formData.captureContractUrl} onChange={(event) => setFormData({ ...formData, captureContractUrl: event.target.value })} placeholder="https://..." />
+                  </div>
+                </div>
+              </div>
+              </>}
+
+              {creationStep === 2 && <>
+              <div className="border-t pt-4">
+                <h3 className="mb-3 font-medium">Multimedia y material comercial</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2"><Label htmlFor="videoUrl">Video del inmueble</Label><Input id="videoUrl" value={formData.videoUrl} onChange={(event) => setFormData({ ...formData, videoUrl: event.target.value })} placeholder="https://youtube.com/..." /></div>
+                  <div className="space-y-2"><Label htmlFor="floorPlanUrl">Plano 2D/3D</Label><Input id="floorPlanUrl" value={formData.floorPlanUrl} onChange={(event) => setFormData({ ...formData, floorPlanUrl: event.target.value })} placeholder="https://..." /></div>
+                  <div className="space-y-2 md:col-span-2"><Label htmlFor="virtualTourUrl">Recorrido virtual</Label><Input id="virtualTourUrl" value={formData.virtualTourUrl} onChange={(event) => setFormData({ ...formData, virtualTourUrl: event.target.value })} placeholder="https://..." /></div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h3 className="font-medium">Campos personalizados</h3>
@@ -505,15 +666,14 @@ export default function PropertiesPage() {
                   </div>
                 )}
               </div>
+              </>}
 
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {editingProperty ? "Actualizar" : "Crear y completar ficha"}
-                </Button>
+                {creationStep > 0 && <Button type="button" variant="ghost" onClick={() => setCreationStep((step) => step - 1)}><ChevronLeft className="mr-2 h-4 w-4" />Anterior</Button>}
+                {creationStep < PROPERTY_FORM_STEPS.length - 1 ? <Button type="button" onClick={goToNextStep}>Siguiente<ChevronRight className="ml-2 h-4 w-4" /></Button> : <Button type="submit" disabled={isSubmitting}>{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}{editingProperty ? "Guardar cambios" : "Crear inmueble"}</Button>}
               </DialogFooter>
             </form>
           </DialogContent>
@@ -613,7 +773,7 @@ export default function PropertiesPage() {
                           <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{property.city}</span></p>
                         </div>
                         <div className="flex shrink-0 items-center gap-0.5">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(property)} aria-label={`Editar ${property.title}`} title="Editar"><Edit className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(property)} aria-label={`Editar ${property.title}`} title="Editar"><Edit className="h-4 w-4" /></Button>
                           <Button variant="ghost" size="icon" onClick={() => handleDelete(property.id)} aria-label={`Eliminar ${property.title}`} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
                         </div>
                       </div>
@@ -656,7 +816,7 @@ export default function PropertiesPage() {
                       <TableCell className="min-w-40">{property.owner.fullName}</TableCell>
                       <TableCell>{getStatusBadge(property.status)}</TableCell>
                       <TableCell className="tabular-nums">{property._count.leases}</TableCell>
-                      <TableCell><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="icon" aria-label={`Editar ${property.title}`} title="Editar" onClick={() => handleEdit(property)}><Edit className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Eliminar ${property.title}`} title="Eliminar" onClick={() => handleDelete(property.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button><Button asChild variant="ghost" size="icon" aria-label={`Ver ${property.title}`} title="Ver ficha"><Link href={`/dashboard/inmuebles/${property.id}`}><Eye className="h-4 w-4" /></Link></Button></div></TableCell>
+                      <TableCell><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="icon" aria-label={`Editar ${property.title}`} title="Editar" onClick={() => handleOpenEdit(property)}><Edit className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Eliminar ${property.title}`} title="Eliminar" onClick={() => handleDelete(property.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button><Button asChild variant="ghost" size="icon" aria-label={`Ver ${property.title}`} title="Ver ficha"><Link href={`/dashboard/inmuebles/${property.id}`}><Eye className="h-4 w-4" /></Link></Button></div></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

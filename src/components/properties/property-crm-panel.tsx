@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import {
   Tabs,
   TabsContent,
@@ -13,13 +15,16 @@ import {
 } from "@/components/ui/tabs";
 import {
   FileText,
-  Image,
+  Image as ImageIcon,
   Loader2,
   MessageSquare,
   Plus,
   Star,
   Trash2,
   UserRoundPlus,
+  Users,
+  FileStack,
+  SlidersHorizontal,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -278,25 +283,36 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
   }
 
   return (
-    <section className="space-y-4 border-t pt-6">
-      <div>
-        <h2 className="text-xl font-semibold">Ficha CRM</h2>
-        <p className="text-sm text-muted-foreground">Seguimiento, contenido y atributos propios de este inmueble</p>
+    <section className="overflow-hidden rounded-xl border bg-card shadow-card">
+      <div className="border-b bg-linear-to-br from-primary/[0.08] via-card to-card px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Relación y actividad</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight">Ficha CRM</h2>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">Centraliza prospectos, comentarios, reseñas, archivos y atributos propios del inmueble.</p>
+          </div>
+          <div className="grid grid-cols-3 overflow-hidden rounded-lg border bg-background/80 text-center">
+            <div className="min-w-20 border-r px-3 py-2"><p className="text-lg font-semibold tabular-nums">{data.interests.length}</p><p className="text-[11px] text-muted-foreground">Interesados</p></div>
+            <div className="min-w-20 border-r px-3 py-2"><p className="text-lg font-semibold tabular-nums">{data.photos.length}</p><p className="text-[11px] text-muted-foreground">Fotos</p></div>
+            <div className="min-w-20 px-3 py-2"><p className="text-lg font-semibold tabular-nums">{data.documents.length}</p><p className="text-[11px] text-muted-foreground">Archivos</p></div>
+          </div>
+        </div>
       </div>
 
       <Tabs defaultValue="interests" className="space-y-4">
-        <div className="overflow-x-auto">
-          <TabsList className="h-auto min-w-max justify-start">
-            <TabsTrigger value="interests">Interesados ({data.interests.length})</TabsTrigger>
-            <TabsTrigger value="comments">Comentarios ({data.comments.length})</TabsTrigger>
-            <TabsTrigger value="reviews">Reseñas ({data.reviews.length})</TabsTrigger>
-            <TabsTrigger value="media">Fotos y documentos</TabsTrigger>
-            <TabsTrigger value="fields">Campos propios ({fieldRows.filter((field) => field.name.trim()).length})</TabsTrigger>
+        <div className="overflow-x-auto px-5 pt-4 sm:px-6">
+          <TabsList className="h-auto min-w-max justify-start gap-1 rounded-lg border bg-muted/60 p-1">
+            <TabsTrigger value="interests" className="gap-2"><Users className="h-4 w-4" />Interesados <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{data.interests.length}</Badge></TabsTrigger>
+            <TabsTrigger value="comments" className="gap-2"><MessageSquare className="h-4 w-4" />Comentarios <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{data.comments.length}</Badge></TabsTrigger>
+            <TabsTrigger value="reviews" className="gap-2"><Star className="h-4 w-4" />Reseñas <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{data.reviews.length}</Badge></TabsTrigger>
+            <TabsTrigger value="media" className="gap-2"><FileStack className="h-4 w-4" />Archivos</TabsTrigger>
+            <TabsTrigger value="fields" className="gap-2"><SlidersHorizontal className="h-4 w-4" />Campos <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{fieldRows.filter((field) => field.name.trim()).length}</Badge></TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="interests" className="space-y-5">
-          <form onSubmit={handleInterestSubmit} className="space-y-3">
+        <TabsContent value="interests" className="space-y-5 px-5 pb-5 sm:px-6">
+          <form onSubmit={handleInterestSubmit} className="space-y-4 rounded-lg border bg-muted/20 p-4">
+            <div><h3 className="font-medium">Agregar interesado</h3><p className="text-sm text-muted-foreground">Registra un prospecto y su etapa actual.</p></div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <div className="space-y-1.5"><Label htmlFor="interest-name">Nombre *</Label><Input id="interest-name" value={interestForm.fullName} onChange={(event) => setInterestForm({ ...interestForm, fullName: event.target.value })} required /></div>
               <div className="space-y-1.5"><Label htmlFor="interest-email">Correo</Label><Input id="interest-email" type="email" value={interestForm.email} onChange={(event) => setInterestForm({ ...interestForm, email: event.target.value })} /></div>
@@ -307,9 +323,9 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
             </div>
             <Button type="submit" disabled={isSaving}><UserRoundPlus className="mr-2 h-4 w-4" />Agregar interesado</Button>
           </form>
-          <div className="divide-y border-y">
+          <div className="space-y-2">
             {data.interests.length === 0 ? <p className="py-5 text-sm text-muted-foreground">Aún no hay contactos interesados.</p> : data.interests.map((interest) => (
-              <article key={interest.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between">
+              <article key={interest.id} className="flex flex-col gap-3 rounded-lg border bg-background px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 space-y-1">
                   <h3 className="font-medium">{interest.fullName}</h3>
                   <p className="text-sm text-muted-foreground">{[interest.email, interest.phone, interest.source].filter(Boolean).join(" · ") || "Sin datos de contacto"}</p>
@@ -325,15 +341,15 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="comments" className="space-y-5">
-          <form onSubmit={handleCommentSubmit} className="grid gap-3 md:grid-cols-[1fr_2fr_auto] md:items-end">
+        <TabsContent value="comments" className="space-y-5 px-5 pb-5 sm:px-6">
+          <form onSubmit={handleCommentSubmit} className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-[1fr_2fr_auto] md:items-end">
             <div className="space-y-1.5"><Label htmlFor="comment-author">Autor</Label><Input id="comment-author" value={commentForm.authorName} onChange={(event) => setCommentForm({ ...commentForm, authorName: event.target.value })} required /></div>
             <div className="space-y-1.5"><Label htmlFor="comment-content">Comentario interno *</Label><Textarea id="comment-content" value={commentForm.content} onChange={(event) => setCommentForm({ ...commentForm, content: event.target.value })} required /></div>
             <Button type="submit" disabled={isSaving}><MessageSquare className="mr-2 h-4 w-4" />Agregar</Button>
           </form>
-          <div className="divide-y border-y">
+          <div className="space-y-2">
             {data.comments.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No hay comentarios todavía.</p> : data.comments.map((comment) => (
-              <article key={comment.id} className="flex items-start justify-between gap-3 py-4">
+              <article key={comment.id} className="flex items-start justify-between gap-3 rounded-lg border bg-background px-4 py-3">
                 <div><p className="text-sm">{comment.content}</p><p className="mt-1 text-xs text-muted-foreground">{comment.authorName} · {formatDate(comment.createdAt)}</p></div>
                 <Button type="button" size="icon" variant="ghost" aria-label="Eliminar comentario" title="Eliminar comentario" onClick={() => deleteRecord("comment", comment.id)}><Trash2 className="h-4 w-4" /></Button>
               </article>
@@ -341,16 +357,16 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="reviews" className="space-y-5">
-          <form onSubmit={handleReviewSubmit} className="grid gap-3 md:grid-cols-[1fr_9rem_2fr_auto] md:items-end">
+        <TabsContent value="reviews" className="space-y-5 px-5 pb-5 sm:px-6">
+          <form onSubmit={handleReviewSubmit} className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-[1fr_9rem_2fr_auto] md:items-end">
             <div className="space-y-1.5"><Label htmlFor="reviewer-name">Nombre *</Label><Input id="reviewer-name" value={reviewForm.reviewerName} onChange={(event) => setReviewForm({ ...reviewForm, reviewerName: event.target.value })} required /></div>
             <div className="space-y-1.5"><Label htmlFor="review-rating">Calificación</Label><select id="review-rating" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={reviewForm.rating} onChange={(event) => setReviewForm({ ...reviewForm, rating: event.target.value })}>{[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} de 5</option>)}</select></div>
             <div className="space-y-1.5"><Label htmlFor="review-comment">Reseña *</Label><Input id="review-comment" value={reviewForm.comment} onChange={(event) => setReviewForm({ ...reviewForm, comment: event.target.value })} required /></div>
             <Button type="submit" disabled={isSaving}><Star className="mr-2 h-4 w-4" />Agregar</Button>
           </form>
-          <div className="divide-y border-y">
+          <div className="space-y-2">
             {data.reviews.length === 0 ? <p className="py-5 text-sm text-muted-foreground">No hay reseñas todavía.</p> : data.reviews.map((review) => (
-              <article key={review.id} className="flex items-start justify-between gap-3 py-4">
+              <article key={review.id} className="flex items-start justify-between gap-3 rounded-lg border bg-background px-4 py-3">
                 <div><p className="font-medium">{review.reviewerName}</p><p className="my-1 flex items-center gap-1 text-amber-600" aria-label={`${review.rating} de 5 estrellas`}>{Array.from({ length: 5 }, (_, index) => <Star key={index} className={`h-4 w-4 ${index < review.rating ? "fill-current" : "text-muted-foreground"}`} />)}</p><p className="text-sm">{review.comment}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(review.createdAt)}</p></div>
                 <Button type="button" size="icon" variant="ghost" aria-label="Eliminar reseña" title="Eliminar reseña" onClick={() => deleteRecord("review", review.id)}><Trash2 className="h-4 w-4" /></Button>
               </article>
@@ -358,8 +374,8 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
           </div>
         </TabsContent>
 
-        <TabsContent value="media" className="space-y-6">
-          <form onSubmit={uploadMedia} className="space-y-3 border-b pb-5">
+        <TabsContent value="media" className="space-y-6 px-5 pb-5 sm:px-6">
+          <form onSubmit={uploadMedia} className="space-y-4 rounded-lg border bg-muted/20 p-4">
             <div className="flex flex-wrap gap-2" role="group" aria-label="Tipo de archivo">
               <Button type="button" size="sm" variant={mediaKind === "photo" ? "default" : "outline"} onClick={() => { setMediaKind("photo"); setMediaFile(null); }}>Imagen</Button>
               <Button type="button" size="sm" variant={mediaKind === "document" ? "default" : "outline"} onClick={() => { setMediaKind("document"); setMediaFile(null); }}>Documento</Button>
@@ -372,25 +388,25 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
           </form>
 
           <div className="space-y-3">
-            <h3 className="flex items-center gap-2 font-medium"><Image className="h-4 w-4" />Galería ({data.photos.length})</h3>
+            <h3 className="flex items-center gap-2 font-medium"><ImageIcon className="h-4 w-4" />Galería ({data.photos.length})</h3>
             {data.photos.length === 0 ? <p className="text-sm text-muted-foreground">No hay imágenes adjuntas.</p> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{data.photos.map((photo) => (
-              <figure key={photo.id} className="relative overflow-hidden rounded-md border">
-                <img src={photo.photoUrl} alt={photo.description || "Foto del inmueble"} className="aspect-video w-full object-cover" />
-                <figcaption className="flex items-center justify-between gap-2 p-2 text-sm"><span className="truncate">{photo.description || "Imagen del inmueble"}</span>{photo.photoUrl.startsWith(`/api/properties/${propertyId}/media/`) && <Button type="button" size="icon" variant="ghost" aria-label="Eliminar imagen" title="Eliminar imagen" onClick={() => deleteMedia(photo.photoUrl, "photo")}><Trash2 className="h-4 w-4" /></Button>}</figcaption>
+              <figure key={photo.id} className="group relative overflow-hidden rounded-lg border bg-background transition-colors hover:border-primary/50">
+                <Image src={photo.photoUrl} alt={photo.description || "Foto del inmueble"} width={640} height={360} unoptimized className="aspect-video w-full object-cover" />
+                <figcaption className="flex items-center justify-between gap-2 border-t p-2.5 text-sm"><span className="truncate">{photo.description || "Imagen del inmueble"}</span>{photo.photoUrl.startsWith(`/api/properties/${propertyId}/media/`) && <Button type="button" size="icon" variant="ghost" className="opacity-70 group-hover:opacity-100" aria-label="Eliminar imagen" title="Eliminar imagen" onClick={() => deleteMedia(photo.photoUrl, "photo")}><Trash2 className="h-4 w-4" /></Button>}</figcaption>
               </figure>
             ))}</div>}
           </div>
 
           <div className="space-y-3">
             <h3 className="flex items-center gap-2 font-medium"><FileText className="h-4 w-4" />Documentos ({data.documents.length})</h3>
-            {data.documents.length === 0 ? <p className="text-sm text-muted-foreground">No hay documentos adjuntos.</p> : <div className="divide-y border-y">{data.documents.map((document) => (
-              <div key={document.id} className="flex items-center justify-between gap-3 py-3"><a className="min-w-0 truncate text-sm font-medium text-primary hover:underline" href={document.fileUrl} target="_blank" rel="noreferrer">{document.documentName}</a><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{formatDate(document.uploadedAt)}</span>{document.fileUrl.startsWith(`/api/properties/${propertyId}/media/`) && <Button type="button" size="icon" variant="ghost" aria-label={`Eliminar ${document.documentName}`} title="Eliminar documento" onClick={() => deleteMedia(document.fileUrl, "document")}><Trash2 className="h-4 w-4" /></Button>}</div></div>
+            {data.documents.length === 0 ? <p className="text-sm text-muted-foreground">No hay documentos adjuntos.</p> : <div className="space-y-2">{data.documents.map((document) => (
+              <div key={document.id} className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2.5"><a className="min-w-0 truncate text-sm font-medium text-primary hover:underline" href={document.fileUrl} target="_blank" rel="noreferrer">{document.documentName}</a><div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{formatDate(document.uploadedAt)}</span>{document.fileUrl.startsWith(`/api/properties/${propertyId}/media/`) && <Button type="button" size="icon" variant="ghost" aria-label={`Eliminar ${document.documentName}`} title="Eliminar documento" onClick={() => deleteMedia(document.fileUrl, "document")}><Trash2 className="h-4 w-4" /></Button>}</div></div>
             ))}</div>}
           </div>
         </TabsContent>
 
-        <TabsContent value="fields" className="space-y-4">
-          <div className="space-y-1"><h3 className="font-medium">Atributos propios de esta ficha</h3><p className="text-sm text-muted-foreground">Agrega cualquier dato que no tenga un campo estándar. Estos atributos solo pertenecen a este inmueble.</p></div>
+        <TabsContent value="fields" className="space-y-4 px-5 pb-5 sm:px-6">
+          <div className="rounded-lg border bg-muted/20 p-4"><h3 className="font-medium">Atributos propios de esta ficha</h3><p className="text-sm text-muted-foreground">Agrega cualquier dato que no tenga un campo estándar. Estos atributos solo pertenecen a este inmueble.</p></div>
           {fieldRows.length === 0 ? <p className="text-sm text-muted-foreground">Aún no se han definido atributos personalizados.</p> : <div className="space-y-3">{fieldRows.map((field) => (
             <div key={field.id} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
               <Input aria-label="Nombre del campo personalizado" placeholder="Nombre del campo" value={field.name} onChange={(event) => updateField(field.id, "name", event.target.value)} />
