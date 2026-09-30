@@ -17,7 +17,14 @@ export async function GET(request: NextRequest) {
 
     const where = {
       ...(entityType && { entityType: entityType as "OWNER" | "TENANT" | "PROPERTY" | "LEASE" }),
-      ...(entityId && { entityId }),
+      ...(entityId && {
+        OR: [
+          { ownerId: entityId },
+          { tenantId: entityId },
+          { propertyId: entityId },
+          { leaseId: entityId },
+        ],
+      }),
     };
 
     const documents = await prisma.entityDocument.findMany({
@@ -37,8 +44,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = documentSchema.parse(body);
 
+    const relationField = `${validatedData.entityType.toLowerCase()}Id` as "ownerId" | "tenantId" | "propertyId" | "leaseId";
+
     const document = await prisma.entityDocument.create({
-      data: validatedData,
+      data: {
+        entityType: validatedData.entityType,
+        documentName: validatedData.documentName,
+        fileUrl: validatedData.fileUrl,
+        [relationField]: validatedData.entityId,
+      },
     });
 
     return NextResponse.json(document, { status: 201 });
