@@ -32,10 +32,21 @@ import {
   Building2,
   Home,
   MapPin,
+  Grid2X2,
+  List,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { LocationPicker } from "@/components/properties/location-picker";
+import { PropertyPortfolioMap, type PropertyMapPoint } from "@/components/properties/property-visuals";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Property {
   id: string;
@@ -93,6 +104,11 @@ export default function PropertiesPage() {
   const [ownerFilter, setOwnerFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const [locations, setLocations] = useState<PropertyMapPoint[]>([]);
+  const [totalPropertiesForMap, setTotalPropertiesForMap] = useState(0);
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [formData, setFormData] = useState({
     code: "",
@@ -157,6 +173,38 @@ export default function PropertiesPage() {
   useEffect(() => {
     fetchOwners();
   }, []);
+
+  useEffect(() => {
+    if (!isLocationMapOpen) return;
+    let isCurrent = true;
+    setIsLoadingLocations(true);
+
+    fetch("/api/properties/locations")
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Error al cargar ubicaciones");
+        return result as { data: PropertyMapPoint[]; totalProperties: number };
+      })
+      .then((result) => {
+        if (!isCurrent) return;
+        setLocations(result.data);
+        setTotalPropertiesForMap(result.totalProperties);
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          toast({
+            title: "Error",
+            description: error instanceof Error ? error.message : "No se pudieron cargar las ubicaciones",
+            variant: "destructive",
+          });
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingLocations(false);
+      });
+
+    return () => { isCurrent = false; };
+  }, [isLocationMapOpen, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -472,6 +520,21 @@ export default function PropertiesPage() {
         </Dialog>
       </div>
 
+      <Dialog open={isLocationMapOpen} onOpenChange={setIsLocationMapOpen}>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-h-[92vh] max-w-6xl overflow-y-auto p-0">
+          <DialogHeader className="px-5 pt-5 sm:px-6 sm:pt-6">
+            <DialogTitle>Mapa de inmuebles</DialogTitle>
+          </DialogHeader>
+          <div className="px-3 pb-3 sm:px-5 sm:pb-5">
+            {isLoadingLocations ? (
+              <div className="flex min-h-80 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-primary" /></div>
+            ) : (
+              <PropertyPortfolioMap properties={locations} totalPropertyCount={totalPropertiesForMap} />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <section className="space-y-5">
         <div className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -479,7 +542,7 @@ export default function PropertiesPage() {
             <h2 className="mt-1 text-xl font-semibold">Inventario de inmuebles</h2>
             <p className="mt-1 text-sm text-muted-foreground">{pagination.total} {pagination.total === 1 ? "propiedad registrada" : "propiedades registradas"}</p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -489,7 +552,7 @@ export default function PropertiesPage() {
                 className="pl-10 sm:w-72"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter || "all"} onValueChange={(value) => setStatusFilter(value === "all" ? "" : value)}>
               <SelectTrigger className="sm:w-44">
                 <SelectValue placeholder="Todos los estados" />
               </SelectTrigger>
@@ -500,6 +563,18 @@ export default function PropertiesPage() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex h-10 w-fit overflow-hidden rounded-md border bg-background" role="group" aria-label="Modo de visualización del inventario">
+              <Button type="button" variant="ghost" size="sm" aria-pressed={viewMode === "cards"} aria-label="Ver en tarjetas" title="Ver en tarjetas" className={`h-full rounded-none px-3 ${viewMode === "cards" ? "bg-accent text-accent-foreground" : ""}`} onClick={() => setViewMode("cards")}>
+                <Grid2X2 className="h-4 w-4 sm:mr-2" /><span className="sr-only sm:not-sr-only">Tarjetas</span>
+              </Button>
+              <div className="w-px bg-border" />
+              <Button type="button" variant="ghost" size="sm" aria-pressed={viewMode === "table"} aria-label="Ver en tabla" title="Ver en tabla" className={`h-full rounded-none px-3 ${viewMode === "table" ? "bg-accent text-accent-foreground" : ""}`} onClick={() => setViewMode("table")}>
+                <List className="h-4 w-4 sm:mr-2" /><span className="sr-only sm:not-sr-only">Tabla</span>
+              </Button>
+            </div>
+            <Button type="button" variant="outline" className="shrink-0" onClick={() => setIsLocationMapOpen(true)}>
+              <MapPin className="mr-2 h-4 w-4" />Mapa
+            </Button>
           </div>
         </div>
 
@@ -514,7 +589,7 @@ export default function PropertiesPage() {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 xl:grid-cols-2">
+            {viewMode === "cards" ? <div className="grid gap-4 xl:grid-cols-2">
               {properties.map((property) => (
                 <article key={property.id} className="group grid overflow-hidden rounded-lg border border-border/80 bg-card transition-colors hover:border-primary/45 sm:grid-cols-[minmax(12rem,0.95fr)_1.2fr]">
                   <Link href={`/dashboard/inmuebles/${property.id}`} className="relative block min-h-48 overflow-hidden bg-muted sm:min-h-56" aria-label={`Ver ${property.title}`}>
@@ -559,7 +634,34 @@ export default function PropertiesPage() {
                   </div>
                 </article>
               ))}
-            </div>
+            </div> : <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Inmueble</TableHead>
+                    <TableHead>Ubicación</TableHead>
+                    <TableHead>Propietario</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Contratos</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {properties.map((property) => (
+                    <TableRow key={property.id}>
+                      <TableCell className="font-mono text-xs font-semibold">{property.code}</TableCell>
+                      <TableCell className="min-w-48"><Link href={`/dashboard/inmuebles/${property.id}`} className="font-medium hover:text-primary">{property.title}</Link></TableCell>
+                      <TableCell className="min-w-48"><span className="flex items-center gap-1.5 text-sm"><MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />{property.city}</span><span className="mt-1 block truncate text-xs text-muted-foreground">{property.address}</span></TableCell>
+                      <TableCell className="min-w-40">{property.owner.fullName}</TableCell>
+                      <TableCell>{getStatusBadge(property.status)}</TableCell>
+                      <TableCell className="tabular-nums">{property._count.leases}</TableCell>
+                      <TableCell><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="icon" aria-label={`Editar ${property.title}`} title="Editar" onClick={() => handleEdit(property)}><Edit className="h-4 w-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Eliminar ${property.title}`} title="Eliminar" onClick={() => handleDelete(property.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button><Button asChild variant="ghost" size="icon" aria-label={`Ver ${property.title}`} title="Ver ficha"><Link href={`/dashboard/inmuebles/${property.id}`}><Eye className="h-4 w-4" /></Link></Button></div></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>}
 
             {pagination.totalPages > 1 && (
               <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
