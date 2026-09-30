@@ -16,6 +16,45 @@ enum DocumentEntityType {
   LEASE
 }
 
+enum ClientRole {
+  OWNER
+  TENANT
+  BUYER
+  PROSPECT
+  GUARANTOR
+}
+
+enum ClientMaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+  COMMON_LAW
+}
+
+enum ClientCommunicationChannel {
+  EMAIL
+  SMS
+  CALL
+  WHATSAPP
+  MESSAGE
+  FORMAL_REQUEST
+}
+
+enum ClientRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ClientRiskDocumentType {
+  INCOME_PROOF
+  PERSONAL_REFERENCE
+  LABOR_REFERENCE
+  CREDIT_REPORT
+}
+
 enum PaymentCategory {
   RENT_CANON
   RESERVATION
@@ -38,6 +77,81 @@ enum NotificationType {
   LEASE_EXPIRATION
   RENOVATION_PROPOSAL
   OWNER_NOTICE
+}
+
+model ClientProfile {
+  id                       String                  @id @default(uuid())
+  fullName                 String
+  legalDocumentId          String                  @unique
+  maritalStatus            ClientMaritalStatus?
+  email                    String?
+  phone                    String
+  alternatePhone           String?
+  address                  String?
+  city                     String?
+  role                     ClientRole              @default(PROSPECT)
+  status                   String                 @default("active")
+  riskLevel                ClientRiskLevel         @default(MEDIUM)
+  riskSummary              String?
+  notes                    String?
+  bankDetails              String?
+  workPlace                String?
+  monthlyIncome            Decimal?                @db.Decimal(12, 2)
+  emergencyContactName     String?
+  emergencyContactPhone    String?
+  preferredPropertyType    String?
+  maxBudget                Decimal?                @db.Decimal(12, 2)
+  housingRequirement       String?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  references               ClientReference[]
+  communications           ClientCommunication[]
+  riskDocuments            ClientRiskDocument[]
+
+  @@index([role, status])
+}
+
+model ClientReference {
+  id             String   @id @default(uuid())
+  clientId       String
+  client         ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  referenceType  String   @default("PERSONAL")
+  fullName       String
+  relationship   String?
+  company        String?
+  phone          String?
+  email          String?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+model ClientCommunication {
+  id              String                    @id @default(uuid())
+  clientId        String
+  client          ClientProfile             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  channel         ClientCommunicationChannel
+  direction       String                    @default("OUTBOUND")
+  subject         String?
+  content         String
+  relatedRequest  String?
+  createdAt       DateTime                  @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+model ClientRiskDocument {
+  id             String                  @id @default(uuid())
+  clientId       String
+  client         ClientProfile           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documentType   ClientRiskDocumentType
+  title          String
+  fileUrl        String?
+  notes          String?
+  uploadedAt     DateTime                @default(now())
+
+  @@index([clientId, uploadedAt])
 }
 
 model Owner {

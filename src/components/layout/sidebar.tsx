@@ -35,6 +35,7 @@ const mainNavigation = [
 ];
 
 const managementNavigation = [
+  { name: "Clientes", href: "/dashboard/clientes", icon: Users },
   { name: "Propietarios", href: "/dashboard/propietarios", icon: Users },
   { name: "Inquilinos", href: "/dashboard/inquilinos", icon: User },
   { name: "Inmuebles", href: "/dashboard/inmuebles", icon: Building2 },
