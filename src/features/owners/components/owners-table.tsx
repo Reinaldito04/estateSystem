@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
-import { Building2, Edit, Eye, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, Edit, Eye, Loader2, Mail, Phone, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -42,11 +42,15 @@ export function OwnersTable({
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <CardTitle>Lista de Propietarios</CardTitle>
-          <div className="relative max-w-xs">
+          <div>
+            <CardTitle className="text-xl">Directorio de propietarios</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Consulta y administra la relación de titulares de inmuebles.</p>
+          </div>
+          <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por nombre, documento, email..."
+              aria-label="Buscar propietarios"
+              placeholder="Nombre, documento o contacto..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               className="pl-10"
@@ -74,22 +78,32 @@ export function OwnersTable({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Documento</TableHead>
-                    <TableHead>Contacto</TableHead>
+                    <TableHead className="min-w-56">Propietario</TableHead>
+                    <TableHead className="min-w-52">Contacto</TableHead>
                     <TableHead>Inmuebles</TableHead>
-                    <TableHead>Registro</TableHead>
+                    <TableHead>Alta</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {owners.map((owner) => (
                     <TableRow key={owner.id}>
-                      <TableCell className="font-medium">{owner.fullName}</TableCell>
-                      <TableCell>{owner.documentId}</TableCell>
                       <TableCell>
-                        <div>{owner.phone}</div>
-                        {owner.email && <div className="text-sm text-muted-foreground">{owner.email}</div>}
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                            {owner.fullName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{owner.fullName}</p>
+                            <p className="text-sm text-muted-foreground">{owner.documentId}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1 text-sm">
+                          <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-muted-foreground" />{owner.phone}</p>
+                          {owner.email ? <p className="flex items-center gap-2 truncate text-muted-foreground"><Mail className="h-3.5 w-3.5 shrink-0" />{owner.email}</p> : <p className="flex items-center gap-2 text-muted-foreground"><Mail className="h-3.5 w-3.5" />Sin correo registrado</p>}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-sm text-primary">
@@ -97,7 +111,7 @@ export function OwnersTable({
                           {owner._count.properties}
                         </span>
                       </TableCell>
-                      <TableCell>{formatDate(owner.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{formatDate(owner.createdAt)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Button variant="ghost" size="icon" onClick={() => onEdit(owner)} aria-label="Editar">

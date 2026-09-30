@@ -17,7 +17,6 @@ import { GlobalSearch } from "./global-search";
 const breadcrumbMap: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/dashboard/propietarios": "Propietarios",
-  "/dashboard/inquilinos": "Inquilinos",
   "/dashboard/inmuebles": "Inmuebles",
   "/dashboard/contratos": "Contratos",
   "/dashboard/transacciones": "Transacciones",

@@ -102,11 +102,15 @@ model ClientProfile {
   preferredPropertyType    String?
   maxBudget                Decimal?                @db.Decimal(12, 2)
   housingRequirement       String?
+  identityDocumentExpiresAt DateTime?
   createdAt                DateTime                @default(now())
   updatedAt                DateTime                @updatedAt
   references               ClientReference[]
   communications           ClientCommunication[]
   riskDocuments            ClientRiskDocument[]
+  leaseClients             LeaseClient[]
+  propertyIssues           PropertyIssue[]
+  documents                EntityDocument[]
 
   @@index([role, status])
 }
@@ -170,31 +174,13 @@ model Owner {
   updatedAt      DateTime   @updatedAt
 }
 
-model Tenant {
-  id                    String          @id @default(uuid())
-  fullName              String
-  documentId            String          @unique
-  email                 String?
-  phone                 String
-  workPlace             String?
-  monthlyIncome         Decimal?        @db.Decimal(12, 2)
-  emergencyContactName  String?
-  emergencyContactPhone String?
-  identityDocumentExpiresAt DateTime?
-  leases                Lease[]
-  propertyIssues        PropertyIssue[]
-  documents             EntityDocument[]
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-}
-
 model EntityDocument {
   id           String             @id @default(uuid())
   entityType   DocumentEntityType
   ownerId      String?
   owner        Owner?             @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  tenantId     String?
-  tenant       Tenant?            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId     String?
+  client       ClientProfile?     @relation(fields: [clientId], references: [id], onDelete: Cascade)
   propertyId   String?
   property     Property?          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   leaseId      String?
@@ -204,7 +190,7 @@ model EntityDocument {
   uploadedAt   DateTime           @default(now())
 
   @@index([entityType, ownerId])
-  @@index([entityType, tenantId])
+  @@index([entityType, clientId])
   @@index([entityType, propertyId])
   @@index([entityType, leaseId])
 }
@@ -341,8 +327,7 @@ model Lease {
   id                 String                     @id @default(uuid())
   propertyId         String
   property           Property                   @relation(fields: [propertyId], references: [id])
-  tenantId           String
-  tenant             Tenant                     @relation(fields: [tenantId], references: [id])
+  leaseClients       LeaseClient[]
   contractNumber     String                     @unique
   startDate          DateTime
   endDate            DateTime
@@ -383,6 +368,19 @@ model Lease {
   signatureEvents    ContractSignatureEvent[]
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
+}
+
+model LeaseClient {
+  id        String        @id @default(uuid())
+  leaseId   String
+  lease     Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  clientId  String
+  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  role      String        @default("TENANT")
+  createdAt DateTime      @default(now())
+
+  @@unique([leaseId, clientId, role])
+  @@index([clientId, role])
 }
 
 model ContractTemplate {
@@ -433,8 +431,8 @@ model PropertyIssue {
   id            String      @id @default(uuid())
   propertyId    String
   property      Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenantId      String
-  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  clientId      String
+  client        ClientProfile @relation(fields: [clientId], references: [id])
   reportDate    DateTime    @default(now())
   issueType     String
   description   String

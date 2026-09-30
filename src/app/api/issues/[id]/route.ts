@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 
 const issueUpdateSchema = z.object({
   propertyId: z.string().uuid().optional(),
+  clientId: z.string().uuid().optional(),
   tenantId: z.string().uuid().optional(),
   issueType: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
@@ -29,7 +30,7 @@ export async function GET(
             owner: { select: { id: true, fullName: true, phone: true } },
           },
         },
-        tenant: true,
+        client: true,
       },
     });
 
@@ -37,7 +38,7 @@ export async function GET(
       return NextResponse.json({ error: "Avería no encontrada" }, { status: 404 });
     }
 
-    return NextResponse.json(issue);
+    return NextResponse.json({ ...issue, tenant: issue.client });
   } catch (error) {
     console.error("Error fetching issue:", error);
     return NextResponse.json({ error: "Error al obtener avería" }, { status: 500 });
@@ -53,7 +54,9 @@ export async function PUT(
     const body = await request.json();
     const validatedData = issueUpdateSchema.parse(body);
 
-    const updateData: Prisma.PropertyIssueUpdateInput = { ...validatedData };
+    const { clientId, tenantId: legacyClientId, ...issueFields } = validatedData;
+    const updateData: Prisma.PropertyIssueUpdateInput = { ...issueFields };
+    if (clientId || legacyClientId) updateData.client = { connect: { id: clientId || legacyClientId } };
     if (validatedData.repairCost !== undefined) {
       updateData.repairCost = new Prisma.Decimal(validatedData.repairCost);
     }
@@ -63,11 +66,11 @@ export async function PUT(
       data: updateData,
       include: {
         property: { select: { id: true, code: true, title: true } },
-        tenant: { select: { id: true, fullName: true, phone: true } },
+        client: { select: { id: true, fullName: true, phone: true } },
       },
     });
 
-    return NextResponse.json(issue);
+    return NextResponse.json({ ...issue, tenant: issue.client });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

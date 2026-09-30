@@ -147,7 +147,7 @@ export default function IssuesPage() {
 
   const fetchTenants = async () => {
     try {
-      const response = await fetch("/api/tenants?limit=100");
+      const response = await fetch("/api/clients?role=TENANT&limit=100");
       if (response.ok) {
         const data = await response.json();
         setTenants(data.data);

@@ -104,7 +104,7 @@ export default function DocumentsPage() {
     try {
       const [ownersRes, tenantsRes, propertiesRes, leasesRes] = await Promise.all([
         fetch("/api/owners?limit=100"),
-        fetch("/api/tenants?limit=100"),
+        fetch("/api/clients?role=TENANT&limit=100"),
         fetch("/api/properties?limit=100"),
         fetch("/api/leases?limit=100"),
       ]);

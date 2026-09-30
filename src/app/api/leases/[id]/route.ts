@@ -6,7 +6,7 @@ import { calculateLeaseBalance } from "@/lib/lease-balance";
 
 const leaseUpdateSchema = z.object({
   propertyId: z.string().uuid().optional(),
-  tenantId: z.string().uuid().optional(),
+  clientProfileId: z.string().uuid().optional(),
   contractNumber: z.string().min(1).optional(),
   startDate: z.string().transform((s) => new Date(s)).optional(),
   endDate: z.string().transform((s) => new Date(s)).optional(),
@@ -37,6 +37,18 @@ const leaseUpdateSchema = z.object({
   signedIp: z.string().optional(),
 });
 
+async function validateClient(clientProfileId: string) {
+  const client = await prisma.clientProfile.findUnique({
+    where: { id: clientProfileId },
+    select: { id: true, fullName: true, legalDocumentId: true, email: true, phone: true, role: true },
+  });
+  if (!client || client.role !== "TENANT") {
+    throw new Error("El cliente seleccionado debe tener el rol Inquilino");
+  }
+
+  return client;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -51,7 +63,7 @@ export async function GET(
             owner: { select: { id: true, fullName: true, phone: true, email: true } },
           },
         },
-        tenant: true,
+        leaseClients: { where: { role: "TENANT" }, include: { client: true } },
         transactions: {
           orderBy: { paymentDate: "desc" },
         },
@@ -69,8 +81,11 @@ export async function GET(
       return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
     }
 
+    const { leaseClients, ...leaseData } = lease;
     return NextResponse.json({
-      ...lease,
+      ...leaseData,
+      clientProfileId: leaseClients[0]?.client.id || null,
+      tenant: leaseClients[0]?.client || null,
       balance: calculateLeaseBalance(
         lease.startDate,
         lease.endDate,
@@ -108,7 +123,15 @@ export async function PUT(
       }
     }
 
-    const updateData: Prisma.LeaseUpdateInput = { ...validatedData };
+    const { clientProfileId, ...leaseFields } = validatedData;
+    const updateData: Prisma.LeaseUpdateInput = { ...leaseFields };
+    if (clientProfileId) {
+      await validateClient(clientProfileId);
+      updateData.leaseClients = {
+        deleteMany: { role: "TENANT" },
+        create: { clientId: clientProfileId, role: "TENANT" },
+      };
+    }
     if (validatedData.monthlyCanonAmount) {
       updateData.monthlyCanonAmount = new Prisma.Decimal(validatedData.monthlyCanonAmount);
     }
@@ -130,7 +153,7 @@ export async function PUT(
       data: updateData,
       include: {
         property: { select: { id: true, code: true, title: true, address: true } },
-        tenant: { select: { id: true, fullName: true, phone: true, email: true } },
+        leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, legalDocumentId: true, phone: true, email: true } } } },
         _count: { select: { transactions: true, notices: true } },
       },
     });

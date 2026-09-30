@@ -20,7 +20,7 @@ export async function POST() {
             owner: { select: { id: true, fullName: true } },
           },
         },
-        tenant: { select: { id: true, fullName: true } },
+        leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true } } } },
       },
     });
 
@@ -40,7 +40,7 @@ export async function POST() {
           data: {
             leaseId: lease.id,
             noticeType: "LEASE_EXPIRATION",
-            notes: `El contrato ${lease.contractNumber} del inmueble ${lease.property.code} - ${lease.property.title} vence el ${lease.endDate.toLocaleDateString("es-VE")}. Inquilino: ${lease.tenant.fullName}. Propietario: ${lease.property.owner.fullName}.`,
+            notes: `El contrato ${lease.contractNumber} del inmueble ${lease.property.code} - ${lease.property.title} vence el ${lease.endDate.toLocaleDateString("es-VE")}. Cliente: ${lease.leaseClients[0]?.client.fullName || "No asignado"}. Propietario: ${lease.property.owner.fullName}.`,
           },
         });
         newNotices.push(notice);
@@ -77,7 +77,7 @@ export async function GET() {
             owner: { select: { id: true, fullName: true, phone: true } },
           },
         },
-        tenant: { select: { id: true, fullName: true, phone: true } },
+        leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, phone: true } } } },
         notices: {
           where: { noticeType: "LEASE_EXPIRATION" },
         },
@@ -85,7 +85,7 @@ export async function GET() {
       orderBy: { endDate: "asc" },
     });
 
-    return NextResponse.json({ data: expiringLeases });
+    return NextResponse.json({ data: expiringLeases.map(({ leaseClients, ...lease }) => ({ ...lease, tenant: leaseClients[0]?.client || null })) });
   } catch (error) {
     console.error("Error fetching expiring leases:", error);
     return NextResponse.json({ error: "Error al obtener contratos por vencer" }, { status: 500 });

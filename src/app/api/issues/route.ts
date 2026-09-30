@@ -5,7 +5,8 @@ import { Prisma } from "@prisma/client";
 
 const issueSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
-  tenantId: z.string().uuid("Inquilino es requerido"),
+  clientId: z.string().uuid().optional(),
+  tenantId: z.string().uuid().optional(),
   issueType: z.string().min(1, "Tipo de avería es requerido"),
   description: z.string().min(1, "Descripción es requerida"),
   status: z.enum(["REPORTED", "IN_PROGRESS", "RESOLVED", "CANCELLED"]).default("REPORTED"),
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
     const propertyId = searchParams.get("propertyId") || "";
-    const tenantId = searchParams.get("tenantId") || "";
+    const clientId = searchParams.get("clientId") || searchParams.get("tenantId") || "";
     const skip = (page - 1) * limit;
 
     const where: Prisma.PropertyIssueWhereInput = {
@@ -33,12 +34,12 @@ export async function GET(request: NextRequest) {
           { description: { contains: search, mode: "insensitive" } },
           { property: { title: { contains: search, mode: "insensitive" } } },
           { property: { code: { contains: search, mode: "insensitive" } } },
-          { tenant: { fullName: { contains: search, mode: "insensitive" } } },
+          { client: { fullName: { contains: search, mode: "insensitive" } } },
         ],
       }),
       ...(status && { status: status as Prisma.PropertyIssueWhereInput["status"] }),
       ...(propertyId && { propertyId }),
-      ...(tenantId && { tenantId }),
+      ...(clientId && { clientId }),
     };
 
     const [issues, total, totalCost] = await Promise.all([
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
         orderBy: { reportDate: "desc" },
         include: {
           property: { select: { id: true, code: true, title: true } },
-          tenant: { select: { id: true, fullName: true, phone: true } },
+          client: { select: { id: true, fullName: true, phone: true } },
         },
       }),
       prisma.propertyIssue.count({ where }),
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      data: issues,
+      data: issues.map(({ client, ...issue }) => ({ ...issue, tenant: client })),
       pagination: {
         page,
         limit,
@@ -81,19 +82,23 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = issueSchema.parse(body);
+    const { clientId: requestedClientId, tenantId: legacyClientId, ...issueData } = validatedData;
+    const clientId = requestedClientId || legacyClientId;
+    if (!clientId) return NextResponse.json({ error: "Cliente es requerido" }, { status: 400 });
 
     const issue = await prisma.propertyIssue.create({
       data: {
-        ...validatedData,
+        ...issueData,
+        clientId,
         repairCost: new Prisma.Decimal(validatedData.repairCost),
       },
       include: {
         property: { select: { id: true, code: true, title: true } },
-        tenant: { select: { id: true, fullName: true, phone: true } },
+        client: { select: { id: true, fullName: true, phone: true } },
       },
     });
 
-    return NextResponse.json(issue, { status: 201 });
+    return NextResponse.json({ ...issue, tenant: issue.client }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

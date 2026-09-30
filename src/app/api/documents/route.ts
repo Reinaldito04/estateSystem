@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       ...(entityId && {
         OR: [
           { ownerId: entityId },
-          { tenantId: entityId },
+          { clientId: entityId },
           { propertyId: entityId },
           { leaseId: entityId },
         ],
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = documentSchema.parse(body);
 
-    const relationField = `${validatedData.entityType.toLowerCase()}Id` as "ownerId" | "tenantId" | "propertyId" | "leaseId";
+    const relationField = (validatedData.entityType === "TENANT" ? "clientId" : `${validatedData.entityType.toLowerCase()}Id`) as "ownerId" | "clientId" | "propertyId" | "leaseId";
 
     const document = await prisma.entityDocument.create({
       data: {

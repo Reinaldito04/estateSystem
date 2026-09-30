@@ -30,13 +30,13 @@ export async function GET(request: NextRequest) {
         lease: {
           include: {
             property: { select: { id: true, code: true, title: true } },
-            tenant: { select: { id: true, fullName: true, phone: true } },
+            leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, phone: true } } } },
           },
         },
       },
     });
 
-    return NextResponse.json({ data: notices });
+    return NextResponse.json({ data: notices.map(({ lease, ...notice }) => ({ ...notice, lease: { ...lease, tenant: lease.leaseClients[0]?.client || null } })) });
   } catch (error) {
     console.error("Error fetching notices:", error);
     return NextResponse.json({ error: "Error al obtener notificaciones" }, { status: 500 });
@@ -54,13 +54,13 @@ export async function POST(request: NextRequest) {
         lease: {
           include: {
             property: { select: { id: true, code: true, title: true } },
-            tenant: { select: { id: true, fullName: true, phone: true } },
+            leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, phone: true } } } },
           },
         },
       },
     });
 
-    return NextResponse.json(notice, { status: 201 });
+    return NextResponse.json({ ...notice, lease: { ...notice.lease, tenant: notice.lease.leaseClients[0]?.client || null } }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

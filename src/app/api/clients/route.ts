@@ -32,18 +32,20 @@ export async function GET(request: NextRequest) {
     const page = Number(searchParams.get("page") || "1");
     const limit = Number(searchParams.get("limit") || "10");
     const search = searchParams.get("search") || "";
+    const role = searchParams.get("role") || "";
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ClientProfileWhereInput = search
-      ? {
-          OR: [
-            { fullName: { contains: search, mode: "insensitive" as const } },
-            { legalDocumentId: { contains: search, mode: "insensitive" as const } },
-            { email: { contains: search, mode: "insensitive" as const } },
-            { phone: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    const where: Prisma.ClientProfileWhereInput = {
+      ...(role === "TENANT" && { role: "TENANT" }),
+      ...(search && {
+        OR: [
+          { fullName: { contains: search, mode: "insensitive" as const } },
+          { legalDocumentId: { contains: search, mode: "insensitive" as const } },
+          { email: { contains: search, mode: "insensitive" as const } },
+          { phone: { contains: search, mode: "insensitive" as const } },
+        ],
+      }),
+    };
 
     const [clients, total] = await Promise.all([
       prisma.clientProfile.findMany({

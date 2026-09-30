@@ -6,7 +6,7 @@ import { calculateLeaseBalance } from "@/lib/lease-balance";
 
 const leaseSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
-  tenantId: z.string().uuid("Inquilino es requerido"),
+  clientProfileId: z.string().uuid("Cliente inquilino es requerido"),
   contractNumber: z.string().min(1, "Número de contrato es requerido"),
   startDate: z.string().transform((s) => new Date(s)),
   endDate: z.string().transform((s) => new Date(s)),
@@ -37,6 +37,18 @@ const leaseSchema = z.object({
   signedIp: z.string().optional(),
 });
 
+async function validateClient(clientProfileId: string) {
+  const client = await prisma.clientProfile.findUnique({
+    where: { id: clientProfileId },
+    select: { id: true, fullName: true, legalDocumentId: true, email: true, phone: true, role: true },
+  });
+  if (!client || client.role !== "TENANT") {
+    throw new Error("El cliente seleccionado debe tener el rol Inquilino");
+  }
+
+  return client;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -54,7 +66,7 @@ export async function GET(request: NextRequest) {
           { contractNumber: { contains: search, mode: "insensitive" } },
           { property: { title: { contains: search, mode: "insensitive" } } },
           { property: { code: { contains: search, mode: "insensitive" } } },
-          { tenant: { fullName: { contains: search, mode: "insensitive" } } },
+          { leaseClients: { some: { role: "TENANT", client: { fullName: { contains: search, mode: "insensitive" } } } } },
         ],
       }),
       ...(status === "active" && { isActive: true }),
@@ -67,7 +79,7 @@ export async function GET(request: NextRequest) {
         },
       }),
       ...(propertyId && { propertyId }),
-      ...(tenantId && { tenantId }),
+      ...(tenantId && { leaseClients: { some: { clientId: tenantId, role: "TENANT" } } }),
     };
 
     const [leases, total] = await Promise.all([
@@ -78,7 +90,7 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: {
           property: { select: { id: true, code: true, title: true, address: true } },
-          tenant: { select: { id: true, fullName: true, phone: true, email: true } },
+          leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, legalDocumentId: true, phone: true, email: true } } } },
           transactions: { select: { category: true, amount: true, paymentDate: true } },
           _count: { select: { transactions: true, notices: true } },
           template: { select: { id: true, name: true, contractType: true } },
@@ -90,6 +102,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: leases.map(({ transactions, ...lease }) => ({
         ...lease,
+        clientProfileId: lease.leaseClients[0]?.client.id || null,
+        tenant: lease.leaseClients[0]?.client || null,
+        leaseClients: undefined,
         balance: calculateLeaseBalance(
           lease.startDate,
           lease.endDate,
@@ -117,6 +132,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = leaseSchema.parse(body);
+    const { clientProfileId, ...leaseData } = validatedData;
+    await validateClient(clientProfileId);
 
     const existingLease = await prisma.lease.findUnique({
       where: { contractNumber: validatedData.contractNumber },
@@ -131,16 +148,17 @@ export async function POST(request: NextRequest) {
 
     const lease = await prisma.lease.create({
       data: {
-        ...validatedData,
-        monthlyCanonAmount: new Prisma.Decimal(validatedData.monthlyCanonAmount),
-        depositAmount: new Prisma.Decimal(validatedData.depositAmount),
-        reservationAmount: new Prisma.Decimal(validatedData.reservationAmount),
-        contractFeeAmount: new Prisma.Decimal(validatedData.contractFeeAmount),
-        priceAdjustmentValue: validatedData.priceAdjustmentValue === null || validatedData.priceAdjustmentValue === undefined ? null : new Prisma.Decimal(validatedData.priceAdjustmentValue),
+        ...leaseData,
+        leaseClients: { create: { clientId: clientProfileId, role: "TENANT" } },
+        monthlyCanonAmount: new Prisma.Decimal(leaseData.monthlyCanonAmount),
+        depositAmount: new Prisma.Decimal(leaseData.depositAmount),
+        reservationAmount: new Prisma.Decimal(leaseData.reservationAmount),
+        contractFeeAmount: new Prisma.Decimal(leaseData.contractFeeAmount),
+        priceAdjustmentValue: leaseData.priceAdjustmentValue === null || leaseData.priceAdjustmentValue === undefined ? null : new Prisma.Decimal(leaseData.priceAdjustmentValue),
       },
       include: {
         property: { select: { id: true, code: true, title: true, address: true } },
-        tenant: { select: { id: true, fullName: true, phone: true, email: true } },
+        leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, legalDocumentId: true, phone: true, email: true } } } },
         _count: { select: { transactions: true, notices: true } },
       },
     });

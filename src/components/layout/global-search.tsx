@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 interface SearchResult {
   id: string;
-  type: "property" | "owner" | "tenant" | "lease" | "transaction" | "issue";
+  type: "property" | "owner" | "client" | "lease" | "transaction" | "issue";
   title: string;
   subtitle: string;
   href: string;
@@ -16,7 +16,7 @@ interface SearchResult {
 const typeConfig = {
   property: { icon: Building2, label: "Inmueble", color: "text-violet-600 bg-violet-500/10" },
   owner: { icon: Users, label: "Propietario", color: "text-blue-600 bg-blue-500/10" },
-  tenant: { icon: User, label: "Inquilino", color: "text-emerald-600 bg-emerald-500/10" },
+  client: { icon: User, label: "Cliente", color: "text-emerald-600 bg-emerald-500/10" },
   lease: { icon: FileText, label: "Contrato", color: "text-amber-600 bg-amber-500/10" },
   transaction: { icon: DollarSign, label: "Transacción", color: "text-emerald-600 bg-emerald-500/10" },
   issue: { icon: Wrench, label: "Avería", color: "text-red-600 bg-red-500/10" },
@@ -45,7 +45,7 @@ export function GlobalSearch() {
       const endpoints = [
         { url: `/api/properties?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "property" as const },
         { url: `/api/owners?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "owner" as const },
-        { url: `/api/tenants?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "tenant" as const },
+        { url: `/api/clients?role=TENANT&search=${encodeURIComponent(searchQuery)}&limit=3`, type: "client" as const },
         { url: `/api/leases?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "lease" as const },
         { url: `/api/transactions?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "transaction" as const },
         { url: `/api/issues?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "issue" as const },
@@ -140,7 +140,7 @@ export function GlobalSearch() {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Buscar propietarios, inquilinos, inmuebles..."
+          placeholder="Buscar clientes, propietarios, inmuebles..."
           value={query}
           onChange={(e) => { setQuery(e.target.value); setIsOpen(true); }}
           onFocus={() => setIsOpen(true)}
@@ -203,7 +203,7 @@ function getTitle(type: SearchResult["type"], item: Record<string, unknown>): st
     case "property":
       return `${item.code} - ${item.title}`;
     case "owner":
-    case "tenant":
+    case "client":
       return item.fullName as string;
     case "lease":
       return `Contrato ${item.contractNumber}`;
@@ -221,8 +221,8 @@ function getSubtitle(type: SearchResult["type"], item: Record<string, unknown>):
     case "property":
       return `${item.address}, ${item.city}`;
     case "owner":
-    case "tenant":
-      return (item.documentId as string) || (item.email as string) || "";
+    case "client":
+      return (item.legalDocumentId as string) || (item.email as string) || "";
     case "lease": {
       const prop = item.property as Record<string, unknown> | undefined;
       return `${prop?.code ?? ""} - ${prop?.title ?? ""}`;
@@ -244,8 +244,8 @@ function getHref(type: SearchResult["type"], item: Record<string, unknown>): str
       return `/dashboard/inmuebles/${item.id}`;
     case "owner":
       return `/dashboard/propietarios/${item.id}`;
-    case "tenant":
-      return `/dashboard/inquilinos/${item.id}`;
+    case "client":
+      return `/dashboard/clientes/${item.id}`;
     case "lease":
       return `/dashboard/contratos/${item.id}`;
     case "transaction":

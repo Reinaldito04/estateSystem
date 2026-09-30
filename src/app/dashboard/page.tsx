@@ -28,12 +28,12 @@ const stats = [
     href: "/dashboard/propietarios",
   },
   {
-    name: "Inquilinos",
+    name: "Clientes inquilinos",
     value: "38",
     change: "+5 este mes",
     icon: Building2,
     color: "text-emerald-600 bg-emerald-500/10",
-    href: "/dashboard/inquilinos",
+    href: "/dashboard/clientes",
   },
   {
     name: "Inmuebles",

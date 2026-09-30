@@ -50,7 +50,7 @@ export async function GET(
         reviews: { orderBy: { createdAt: "desc" } },
         leases: {
           include: {
-            tenant: { select: { id: true, fullName: true, phone: true } },
+            leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, phone: true } } } },
             transactions: { select: { category: true, amount: true, paymentDate: true } },
           },
           orderBy: { createdAt: "desc" },
@@ -61,7 +61,7 @@ export async function GET(
         },
         issues: {
           include: {
-            tenant: { select: { id: true, fullName: true } },
+            client: { select: { id: true, fullName: true } },
           },
           orderBy: { reportDate: "desc" },
         },
@@ -78,8 +78,9 @@ export async function GET(
 
     return NextResponse.json({
       ...property,
-      leases: property.leases.map(({ transactions, ...lease }) => ({
+      leases: property.leases.map(({ transactions, leaseClients, ...lease }) => ({
         ...lease,
+        tenant: leaseClients[0]?.client || null,
         balance: calculateLeaseBalance(
           lease.startDate,
           lease.endDate,
@@ -90,6 +91,7 @@ export async function GET(
           })),
         ),
       })),
+      issues: property.issues.map(({ client, ...issue }) => ({ ...issue, tenant: client })),
     });
   } catch (error) {
     console.error("Error fetching property:", error);

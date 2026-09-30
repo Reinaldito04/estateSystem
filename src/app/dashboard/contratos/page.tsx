@@ -53,6 +53,7 @@ interface Lease {
   reservationAmount: string;
   contractFeeAmount: string;
   contractFileUrl: string | null;
+  clientProfileId: string | null;
   isActive: boolean;
   contractStatus: string;
   renewalMode: string;
@@ -87,9 +88,12 @@ interface Property {
   title: string;
 }
 
-interface Tenant {
+interface Client {
   id: string;
   fullName: string;
+  legalDocumentId: string;
+  email: string | null;
+  phone: string;
 }
 
 interface Pagination {
@@ -102,7 +106,7 @@ interface Pagination {
 export default function LeasesPage() {
   const [leases, setLeases] = useState<Lease[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -116,7 +120,7 @@ export default function LeasesPage() {
   const [editingLease, setEditingLease] = useState<Lease | null>(null);
   const [formData, setFormData] = useState({
     propertyId: "",
-    tenantId: "",
+    clientProfileId: "",
     contractNumber: "",
     startDate: "",
     endDate: "",
@@ -179,15 +183,15 @@ export default function LeasesPage() {
     }
   };
 
-  const fetchTenants = async () => {
+  const fetchClients = async () => {
     try {
-      const response = await fetch("/api/tenants?limit=100");
+      const response = await fetch("/api/clients?role=TENANT&limit=100");
       if (response.ok) {
         const data = await response.json();
-        setTenants(data.data);
+        setClients(data.data);
       }
     } catch {
-      console.error("Error fetching tenants");
+      console.error("Error fetching tenant clients");
     }
   };
 
@@ -197,7 +201,7 @@ export default function LeasesPage() {
 
   useEffect(() => {
     fetchProperties();
-    fetchTenants();
+    fetchClients();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -244,7 +248,7 @@ export default function LeasesPage() {
     setEditingLease(lease);
     setFormData({
       propertyId: lease.property.id,
-      tenantId: lease.tenant.id,
+      clientProfileId: lease.clientProfileId || "",
       contractNumber: lease.contractNumber,
       startDate: lease.startDate.split("T")[0],
       endDate: lease.endDate.split("T")[0],
@@ -291,7 +295,7 @@ export default function LeasesPage() {
     setEditingLease(null);
     setFormData({
       propertyId: "",
-      tenantId: "",
+      clientProfileId: "",
       contractNumber: "",
       startDate: "",
       endDate: "",
@@ -384,14 +388,14 @@ export default function LeasesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tenantId">Inquilino *</Label>
-                  <Select value={formData.tenantId} onValueChange={(v) => setFormData({ ...formData, tenantId: v })}>
+                  <Label htmlFor="clientProfileId">Cliente inquilino *</Label>
+                  <Select value={formData.clientProfileId} onValueChange={(v) => setFormData({ ...formData, clientProfileId: v })}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar inquilino" />
+                      <SelectValue placeholder="Seleccionar cliente" />
                     </SelectTrigger>
                     <SelectContent>
-                      {tenants.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
+                      {clients.map((client) => (
+                        <SelectItem key={client.id} value={client.id}>{client.fullName} · {client.legalDocumentId}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

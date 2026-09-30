@@ -38,6 +38,36 @@ export async function GET(
         references: { orderBy: { createdAt: "desc" } },
         communications: { orderBy: { createdAt: "desc" } },
         riskDocuments: { orderBy: { uploadedAt: "desc" } },
+        leaseClients: {
+          where: { role: "TENANT" },
+          orderBy: { createdAt: "desc" },
+          include: {
+            lease: {
+              select: {
+                id: true,
+                contractNumber: true,
+                startDate: true,
+                endDate: true,
+                monthlyCanonAmount: true,
+                contractStatus: true,
+                isActive: true,
+                property: { select: { id: true, code: true, title: true, address: true } },
+                transactions: {
+                  orderBy: { paymentDate: "desc" },
+                  select: { id: true, amount: true, category: true, paymentDate: true, paymentMethod: true, description: true },
+                },
+              },
+            },
+          },
+        },
+        propertyIssues: {
+          orderBy: { reportDate: "desc" },
+          select: { id: true, issueType: true, description: true, status: true, reportDate: true, property: { select: { code: true, title: true } } },
+        },
+        documents: {
+          orderBy: { uploadedAt: "desc" },
+          select: { id: true, documentName: true, fileUrl: true, uploadedAt: true },
+        },
         _count: { select: { communications: true, references: true, riskDocuments: true } },
       },
     });
@@ -46,7 +76,24 @@ export async function GET(
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json(client);
+    return NextResponse.json({
+      ...client,
+      tenantOperations: client.role === "TENANT"
+        ? {
+            id: client.id,
+            leases: client.leaseClients.map(({ lease }) => ({
+              ...lease,
+              monthlyCanonAmount: Number(lease.monthlyCanonAmount),
+              transactions: lease.transactions.map((transaction) => ({
+                ...transaction,
+                amount: Number(transaction.amount),
+              })),
+            })),
+            propertyIssues: client.propertyIssues,
+            documents: client.documents,
+          }
+        : null,
+    });
   } catch (error) {
     console.error("Error fetching client:", error);
     return NextResponse.json({ error: "Error al obtener cliente" }, { status: 500 });

@@ -11,7 +11,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { templateId } = draftSchema.parse(await request.json().catch(() => ({})));
     const lease = await prisma.lease.findUnique({
       where: { id },
-      include: { property: { include: { owner: true } }, tenant: true, template: true },
+      include: { property: { include: { owner: true } }, leaseClients: { where: { role: "TENANT" }, include: { client: true } }, template: true },
     });
     if (!lease) return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
 
@@ -20,6 +20,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       : DEFAULT_LEASE_TEMPLATE;
     if (!template) return NextResponse.json({ error: "Plantilla no encontrada" }, { status: 404 });
 
+    const tenant = lease.leaseClients[0]?.client;
+    if (!tenant) return NextResponse.json({ error: "El contrato no tiene un cliente asignado" }, { status: 400 });
+
     const draftContent = renderLeaseTemplate(template.content, {
       contractNumber: lease.contractNumber,
       startDate: lease.startDate,
@@ -27,7 +30,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       monthlyCanonAmount: lease.monthlyCanonAmount.toString(),
       depositAmount: lease.depositAmount.toString(),
       property: lease.property,
-      tenant: lease.tenant,
+      tenant,
       propertyOwner: lease.property.owner,
     });
     const updated = await prisma.lease.update({ where: { id }, data: { templateId: template.id === DEFAULT_LEASE_TEMPLATE.id ? null : template.id, draftContent, contractStatus: "IN_REVIEW" } });

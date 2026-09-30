@@ -46,7 +46,11 @@ export function OwnerFormDialog({
         <DialogHeader>
           <DialogTitle>{editingOwner ? "Editar Propietario" : "Nuevo Propietario"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="space-y-4 py-4">
+        <form onSubmit={onSubmit} className="space-y-6 py-4">
+          <div>
+            <h3 className="text-sm font-semibold">Identificación</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Datos básicos para identificar al titular legal.</p>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="fullName">Nombre Completo *</Label>
@@ -68,6 +72,12 @@ export function OwnerFormDialog({
                 placeholder="V-12345678"
               />
             </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Canales de contacto</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Mantén actualizados los medios para gestiones y notificaciones.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -97,6 +107,12 @@ export function OwnerFormDialog({
                 placeholder="0424-1234567"
               />
             </div>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">Información administrativa</h3>
+            <p className="mt-1 text-sm text-muted-foreground">Usa estos datos para la gestión documental y financiera.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="address">Dirección</Label>
               <Input

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, Mail, Phone, ShieldCheck, UserRound, FileText, MessageSquare } from "lucide-react";
+import { ArrowLeft, Building2, Calendar, DollarSign, FileText, Mail, MessageSquare, Phone, ShieldCheck, UserRound, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import type { ClientProfile } from "../types";
 
 const emptyReferenceForm = {
@@ -64,6 +64,41 @@ type ClientDetail = ClientProfile & {
     notes: string | null;
     uploadedAt: string;
   }>;
+  tenantOperations: {
+    id: string;
+    leases: Array<{
+      id: string;
+      contractNumber: string;
+      startDate: string;
+      endDate: string;
+      monthlyCanonAmount: number;
+      contractStatus: string;
+      isActive: boolean;
+      property: { id: string; code: string; title: string; address: string };
+      transactions: Array<{
+        id: string;
+        amount: number;
+        category: string;
+        paymentDate: string;
+        paymentMethod: string;
+        description: string | null;
+      }>;
+    }>;
+    propertyIssues: Array<{
+      id: string;
+      issueType: string;
+      description: string;
+      status: string;
+      reportDate: string;
+      property: { code: string; title: string };
+    }>;
+    documents: Array<{
+      id: string;
+      documentName: string;
+      fileUrl: string;
+      uploadedAt: string;
+    }>;
+  } | null;
 };
 
 const roleLabels: Record<string, string> = {
@@ -244,6 +279,50 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
     return null;
   };
 
+  const renderTenantOperations = () => {
+    if (client.role !== "TENANT" || !client.tenantOperations) return null;
+
+    const leases = client.tenantOperations.leases;
+    const payments = leases.flatMap((lease) => lease.transactions);
+    const paidAmount = payments.reduce((total, payment) => total + payment.amount, 0);
+
+    return (
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold tracking-tight">Operación del cliente</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Contratos, pagos, incidencias y documentos asociados a este inquilino.</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <Card><CardContent className="flex items-center gap-3 p-5"><Building2 className="h-5 w-5 text-primary" /><div><p className="text-sm text-muted-foreground">Contratos</p><p className="text-2xl font-semibold">{leases.length}</p></div></CardContent></Card>
+          <Card><CardContent className="flex items-center gap-3 p-5"><DollarSign className="h-5 w-5 text-emerald-600" /><div><p className="text-sm text-muted-foreground">Pagos registrados</p><p className="text-2xl font-semibold">{payments.length}</p></div></CardContent></Card>
+          <Card><CardContent className="flex items-center gap-3 p-5"><Wrench className="h-5 w-5 text-amber-600" /><div><p className="text-sm text-muted-foreground">Averías</p><p className="text-2xl font-semibold">{client.tenantOperations.propertyIssues.length}</p></div></CardContent></Card>
+          <Card><CardContent className="flex items-center gap-3 p-5"><FileText className="h-5 w-5 text-blue-600" /><div><p className="text-sm text-muted-foreground">Total pagado</p><p className="text-lg font-semibold">{formatCurrency(paidAmount)}</p></div></CardContent></Card>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4" /> Contratos asignados</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {leases.length === 0 ? <p className="text-sm text-muted-foreground">No hay contratos asignados.</p> : leases.map((lease) => (
+                <Link key={lease.id} href={`/dashboard/contratos/${lease.id}`} className="block rounded-lg border p-3 transition-colors hover:bg-muted/50">
+                  <div className="flex items-start justify-between gap-3"><div><p className="font-medium">{lease.contractNumber}</p><p className="text-sm text-muted-foreground">{lease.property.code} · {lease.property.title}</p></div><Badge variant={lease.isActive ? "success" : "outline"}>{lease.isActive ? "Activo" : "Inactivo"}</Badge></div>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{formatDate(lease.startDate)} - {formatDate(lease.endDate)}</span><span>{formatCurrency(lease.monthlyCanonAmount)} / mes</span></div>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><DollarSign className="h-4 w-4" /> Historial de pagos</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {payments.length === 0 ? <p className="text-sm text-muted-foreground">No hay pagos registrados.</p> : payments.slice(0, 6).map((payment) => (
+                <div key={payment.id} className="flex items-center justify-between gap-3 rounded-lg border p-3"><div><p className="font-medium">{formatCurrency(payment.amount)}</p><p className="text-sm text-muted-foreground">{payment.description || payment.category} · {payment.paymentMethod}</p></div><span className="text-xs text-muted-foreground">{formatDate(payment.paymentDate)}</span></div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -314,6 +393,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       </div>
 
       {renderRoleSpecificInformation()}
+      {renderTenantOperations()}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">
