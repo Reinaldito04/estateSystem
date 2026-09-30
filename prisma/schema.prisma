@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum DocumentEntityType {
@@ -102,6 +101,9 @@ model Property {
   title                    String
   address                  String
   city                     String
+  latitude                 Float?
+  longitude                Float?
+  customFields             Json            @default("{}")
   condoName                String?
   condoAccountNumber       String?
   electricityAccountNumber String?
@@ -109,6 +111,9 @@ model Property {
   internetAccountNumber    String?
   status                   String          @default("available")
   photos                   PropertyPhoto[]
+  interests                PropertyInterest[]
+  comments                 PropertyComment[]
+  reviews                  PropertyReview[]
   leases                   Lease[]
   transactions             Transaction[]
   issues                   PropertyIssue[]
@@ -124,6 +129,45 @@ model PropertyPhoto {
   photoUrl    String
   description String?
   uploadedAt  DateTime @default(now())
+}
+
+model PropertyInterest {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  fullName   String
+  email      String?
+  phone      String?
+  source     String?
+  status     String   @default("new")
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([propertyId, createdAt])
+}
+
+model PropertyComment {
+  id         String   @id @default(uuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  authorName String   @default("Equipo")
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([propertyId, createdAt])
+}
+
+model PropertyReview {
+  id           String   @id @default(uuid())
+  propertyId   String
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  reviewerName String
+  rating       Int
+  comment      String
+  createdAt    DateTime @default(now())
+
+  @@index([propertyId, createdAt])
 }
 
 model Lease {

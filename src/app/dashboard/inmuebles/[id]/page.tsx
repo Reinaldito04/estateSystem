@@ -27,6 +27,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatCurrency, formatDate, PAYMENT_CATEGORIES } from "@/lib/utils";
+import { PropertyCrmPanel } from "@/components/properties/property-crm-panel";
+import { PropertyLocationMap, PropertyPhotoGallery } from "@/components/properties/property-visuals";
 
 interface Property {
   id: string;
@@ -34,6 +36,8 @@ interface Property {
   title: string;
   address: string;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
   status: string;
   condoName: string | null;
   condoAccountNumber: string | null;
@@ -97,7 +101,7 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
+      <div className="mx-auto flex min-h-80 max-w-7xl items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
@@ -118,85 +122,50 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button asChild variant="ghost" size="icon">
+    <div className="mx-auto max-w-7xl space-y-8 pb-10">
+      <header className="flex flex-col gap-4 border-b border-border/70 pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+        <Button asChild variant="outline" size="icon" className="mt-1 shrink-0 rounded-full">
           <Link href="/dashboard/inmuebles">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{property.code} - {property.title}</h1>
-          <p className="text-muted-foreground">{property.address}, {property.city}</p>
+        <div className="min-w-0">
+          <p className="font-mono text-xs font-semibold uppercase tracking-[0.16em] text-primary">{property.code}</p>
+          <h1 className="mt-1 text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">{property.title}</h1>
+          <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground"><MapPin className="mt-0.5 h-4 w-4 shrink-0" /><span>{property.address}, {property.city}</span></p>
         </div>
-      </div>
-
-      {property.photos.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3">
-          {property.photos.slice(0, 3).map((photo) => (
-            <div key={photo.id} className="aspect-video rounded-lg overflow-hidden border">
-              <img src={photo.photoUrl} alt={photo.description || property.title} className="w-full h-full object-cover" />
-            </div>
-          ))}
         </div>
-      )}
+        <Badge variant={property.status === "available" ? "success" : "secondary"} className="w-fit shrink-0 px-3 py-1.5 text-sm">
+          {property.status === "available" ? "Disponible" : property.status === "occupied" ? "Ocupado" : property.status === "maintenance" ? "En mantenimiento" : property.status === "unavailable" ? "No disponible" : property.status}
+        </Badge>
+      </header>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-blue-100 text-blue-600">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Propietario</p>
-                <p className="font-medium">{property.owner.fullName}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-green-100 text-green-600">
-                <Home className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Estado</p>
-                <Badge variant={property.status === "available" ? "success" : "secondary"}>
-                  {property.status === "available" ? "Disponible" : property.status === "occupied" ? "Ocupado" : property.status}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-purple-100 text-purple-600">
-                <DollarSign className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Transacciones</p>
-                <p className="text-2xl font-bold">{property._count.transactions}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-full bg-yellow-100 text-yellow-600">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Averías</p>
-                <p className="text-2xl font-bold">{property._count.issues}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <section className="grid gap-4 lg:grid-cols-[1.6fr_0.9fr]">
+        <PropertyPhotoGallery title={property.title} photos={property.photos} />
+        {property.latitude !== null && property.longitude !== null ? (
+          <PropertyLocationMap
+            title={property.title}
+            latitude={property.latitude}
+            longitude={property.longitude}
+            address={property.address}
+            city={property.city}
+          />
+        ) : (
+          <section className="flex min-h-72 flex-col overflow-hidden rounded-lg border bg-card sm:min-h-80">
+            <div className="flex items-center gap-2.5 border-b px-4 py-3"><span className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground"><MapPin className="h-4 w-4" /></span><div><h2 className="text-sm font-semibold">Ubicación</h2><p className="text-xs text-muted-foreground">{property.city}</p></div></div>
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 bg-muted/40 px-6 text-center"><MapPin className="h-7 w-7 text-muted-foreground" /><p className="font-medium">Ubicación no marcada</p><p className="text-sm text-muted-foreground">Añade el punto desde el formulario del inmueble.</p></div>
+            <div className="border-t px-4 py-3 text-sm font-medium">{property.address}</div>
+          </section>
+        )}
+      </section>
+
+      <dl className="grid grid-cols-2 divide-x divide-y divide-border/70 overflow-hidden rounded-lg border bg-card sm:grid-cols-4 sm:divide-y-0">
+        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Propietario</dt><dd className="mt-2 truncate font-medium">{property.owner.fullName}</dd></div>
+        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contratos</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.leases}</dd></div>
+        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Transacciones</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.transactions}</dd></div>
+        <div className="p-4 sm:px-5"><dt className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Averías</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{property._count.issues}</dd></div>
+      </dl>
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -267,6 +236,8 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           </CardContent>
         </Card>
       </div>
+
+      <PropertyCrmPanel propertyId={property.id} />
 
       <Card>
         <CardHeader>

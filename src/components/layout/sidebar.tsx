@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   Users,
-  Home,
   FileText,
   DollarSign,
   Wrench,
@@ -16,7 +15,6 @@ import {
   User,
   Building,
   AlertTriangle,
-  BarChart3,
   Bell,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,7 +25,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -42,53 +40,70 @@ const navigation = [
   { name: "Notificaciones", href: "/dashboard/notificaciones", icon: Bell },
 ];
 
-export function Sidebar() {
+export function Sidebar({
+  mobileMenuOpen,
+  onNavigate,
+}: {
+  mobileMenuOpen: boolean;
+  onNavigate: () => void;
+}) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r bg-background transition-all">
-      <div className="flex h-full flex-col">
-        <div className="flex h-16 shrink-0 items-center justify-between border-b px-4">
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
-            <Building className="h-8 w-8 text-primary" />
-            <span className="hidden sm:block">Inmobiliaria</span>
-          </Link>
-        </div>
+    <aside
+      aria-label="Navegación principal"
+      className={cn(
+        "fixed inset-y-0 left-0 z-50 flex h-dvh w-64 flex-col border-r border-white/10 bg-[#17352F] text-white shadow-2xl transition-transform duration-300 lg:translate-x-0 lg:shadow-none",
+        mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}
+    >
+      <div className="flex h-20 shrink-0 items-center border-b border-white/10 px-5">
+        <Link href="/dashboard" onClick={onNavigate} className="flex items-center gap-3">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#B9E5C6] text-[#17352F]">
+            <Building className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <span className="flex flex-col">
+            <span className="text-base font-semibold leading-tight">Inmobiliaria</span>
+            <span className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white/55">Sistema de gestión</span>
+        </span>
+        </Link>
+      </div>
 
-        <nav className="flex-1 space-y-1 p-4 overflow-y-auto" aria-label="Main navigation">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-                aria-current={isActive ? "page" : undefined}
-              >
-                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-6" aria-label="Secciones">
+        <p className="mb-3 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">Espacio de trabajo</p>
+        {navigation.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              onClick={onNavigate}
+              className={cn(
+                "group flex items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-medium transition-colors",
+                isActive
+                  ? "bg-[#B9E5C6] text-[#17352F] shadow-sm"
+                  : "text-white/70 hover:bg-white/10 hover:text-white"
+              )}
+              aria-current={isActive ? "page" : undefined}
+            >
+              <Icon className="h-4.5 w-4.5 shrink-0" aria-hidden="true" />
+              <span>{item.name}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-        <div className="border-t p-4">
+      <div className="border-t border-white/10 p-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start gap-3 h-10 px-3">
+              <Button variant="ghost" className="h-12 w-full justify-start gap-3 px-3 text-white hover:bg-white/10 hover:text-white">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src="/avatar.png" alt="Usuario" />
-                  <AvatarFallback>AD</AvatarFallback>
+                  <AvatarFallback className="bg-[#B9E5C6] text-[#17352F]">AD</AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start text-left">
                   <span className="text-sm font-medium truncate">Admin User</span>
-                  <span className="text-xs text-muted-foreground">Administrador</span>
+                  <span className="text-xs text-white/55">Administrador</span>
                 </div>
               </Button>
             </DropdownMenuTrigger>
@@ -108,7 +123,6 @@ export function Sidebar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
       </div>
     </aside>
   );

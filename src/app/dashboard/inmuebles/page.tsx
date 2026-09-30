@@ -2,18 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -38,9 +31,11 @@ import {
   Loader2,
   Building2,
   Home,
+  MapPin,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { LocationPicker } from "@/components/properties/location-picker";
 
 interface Property {
   id: string;
@@ -48,6 +43,9 @@ interface Property {
   title: string;
   address: string;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
+  customFields: Record<string, string>;
   status: string;
   owner: { id: string; fullName: string; phone: string };
   photos: { id: string; photoUrl: string; description: string | null }[];
@@ -58,6 +56,12 @@ interface Property {
 interface Owner {
   id: string;
   fullName: string;
+}
+
+interface CustomFieldDraft {
+  id: string;
+  name: string;
+  value: string;
 }
 
 interface Pagination {
@@ -75,6 +79,7 @@ const STATUS_OPTIONS = [
 ];
 
 export default function PropertiesPage() {
+  const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -95,6 +100,8 @@ export default function PropertiesPage() {
     title: "",
     address: "",
     city: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
     condoName: "",
     condoAccountNumber: "",
     electricityAccountNumber: "",
@@ -103,6 +110,7 @@ export default function PropertiesPage() {
     status: "available",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customFieldDrafts, setCustomFieldDrafts] = useState<CustomFieldDraft[]>([]);
   const { toast } = useToast();
 
   const fetchProperties = async () => {
@@ -152,6 +160,14 @@ export default function PropertiesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const customFieldNames = customFieldDrafts
+      .filter((field) => field.name.trim())
+      .map((field) => field.name.trim().toLowerCase());
+    if (new Set(customFieldNames).size !== customFieldNames.length) {
+      toast({ title: "Campos repetidos", description: "Cada campo debe tener un nombre único", variant: "destructive" });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const url = editingProperty ? `/api/properties/${editingProperty.id}` : "/api/properties";
@@ -159,16 +175,25 @@ export default function PropertiesPage() {
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          customFields: Object.fromEntries(
+            customFieldDrafts
+              .filter((field) => field.name.trim())
+              .map((field) => [field.name.trim(), field.value])
+          ),
+        }),
       });
       if (response.ok) {
+        const savedProperty = await response.json();
         toast({
           title: editingProperty ? "Actualizado" : "Creado",
           description: `Inmueble ${editingProperty ? "actualizado" : "creado"} correctamente`,
         });
         setIsDialogOpen(false);
         resetForm();
-        fetchProperties();
+        if (editingProperty) fetchProperties();
+        else router.push(`/dashboard/inmuebles/${savedProperty.id}`);
       } else {
         const error = await response.json();
         toast({ title: "Error", description: error.error || "Error al guardar", variant: "destructive" });
@@ -189,6 +214,8 @@ export default function PropertiesPage() {
       title: property.title,
       address: property.address,
       city: property.city,
+      latitude: property.latitude ?? null,
+      longitude: property.longitude ?? null,
       condoName: (p.condoName as string) || "",
       condoAccountNumber: (p.condoAccountNumber as string) || "",
       electricityAccountNumber: (p.electricityAccountNumber as string) || "",
@@ -196,6 +223,11 @@ export default function PropertiesPage() {
       internetAccountNumber: (p.internetAccountNumber as string) || "",
       status: property.status,
     });
+    setCustomFieldDrafts(Object.entries(property.customFields || {}).map(([name, value], index) => ({
+      id: `field-${index}-${name}`,
+      name,
+      value,
+    })));
     setIsDialogOpen(true);
   };
 
@@ -223,6 +255,8 @@ export default function PropertiesPage() {
       title: "",
       address: "",
       city: "",
+      latitude: null,
+      longitude: null,
       condoName: "",
       condoAccountNumber: "",
       electricityAccountNumber: "",
@@ -230,6 +264,7 @@ export default function PropertiesPage() {
       internetAccountNumber: "",
       status: "available",
     });
+    setCustomFieldDrafts([]);
   };
 
   const handleOpenCreate = () => {
@@ -239,13 +274,13 @@ export default function PropertiesPage() {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
-      available: { label: "Disponible", className: "bg-green-100 text-green-800" },
-      occupied: { label: "Ocupado", className: "bg-blue-100 text-blue-800" },
-      maintenance: { label: "En Mantenimiento", className: "bg-yellow-100 text-yellow-800" },
-      unavailable: { label: "No Disponible", className: "bg-red-100 text-red-800" },
+      available: { label: "Disponible", className: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+      occupied: { label: "Ocupado", className: "bg-sky-500/10 text-sky-700 dark:text-sky-300" },
+      maintenance: { label: "En mantenimiento", className: "bg-amber-500/10 text-amber-700 dark:text-amber-300" },
+      unavailable: { label: "No disponible", className: "bg-rose-500/10 text-rose-700 dark:text-rose-300" },
     };
     const s = statusMap[status] || { label: status, className: "bg-gray-100 text-gray-800" };
-    return <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.className}`}>{s.label}</span>;
+    return <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${s.className}`}><span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />{s.label}</span>;
   };
 
   return (
@@ -321,6 +356,17 @@ export default function PropertiesPage() {
                     placeholder="Caracas"
                   />
                 </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Ubicación en el mapa</Label>
+                  <LocationPicker
+                    value={formData.latitude !== null && formData.longitude !== null
+                      ? { latitude: formData.latitude, longitude: formData.longitude }
+                      : null}
+                    onChange={({ latitude, longitude }) =>
+                      setFormData({ ...formData, latitude, longitude })
+                    }
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="status">Estado</Label>
                   <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
@@ -387,13 +433,38 @@ export default function PropertiesPage() {
                 </div>
               </div>
 
+              <div className="border-t pt-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-medium">Campos personalizados</h3>
+                    <p className="text-sm text-muted-foreground">Atributos adicionales exclusivos de este inmueble</p>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setCustomFieldDrafts((fields) => [...fields, { id: crypto.randomUUID(), name: "", value: "" }])}>
+                    <Plus className="mr-2 h-4 w-4" />Agregar campo
+                  </Button>
+                </div>
+                {customFieldDrafts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin atributos adicionales</p>
+                ) : (
+                  <div className="space-y-2">
+                    {customFieldDrafts.map((field) => (
+                      <div key={field.id} className="grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+                        <Input aria-label="Nombre del campo personalizado" placeholder="Nombre del campo" value={field.name} onChange={(event) => setCustomFieldDrafts((fields) => fields.map((item) => item.id === field.id ? { ...item, name: event.target.value } : item))} />
+                        <Input aria-label="Valor del campo personalizado" placeholder="Valor" value={field.value} onChange={(event) => setCustomFieldDrafts((fields) => fields.map((item) => item.id === field.id ? { ...item, value: event.target.value } : item))} />
+                        <Button type="button" size="icon" variant="ghost" aria-label="Quitar campo personalizado" title="Quitar campo" onClick={() => setCustomFieldDrafts((fields) => fields.filter((item) => item.id !== field.id))}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {editingProperty ? "Actualizar" : "Crear"}
+                  {editingProperty ? "Actualizar" : "Crear y completar ficha"}
                 </Button>
               </DialogFooter>
             </form>
@@ -401,142 +472,107 @@ export default function PropertiesPage() {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle>Lista de Inmuebles</CardTitle>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por código, título, dirección..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-10 w-64"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      <section className="space-y-5">
+        <div className="flex flex-col gap-4 border-b border-border/70 pb-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Portafolio</p>
+            <h2 className="mt-1 text-xl font-semibold">Inventario de inmuebles</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{pagination.total} {pagination.total === 1 ? "propiedad registrada" : "propiedades registradas"}</p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Código, título o dirección"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-10 sm:w-72"
+              />
             </div>
-          ) : properties.length === 0 ? (
-            <div className="text-center py-8">
-              <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No hay inmuebles registrados</p>
-              <Button className="mt-4" onClick={handleOpenCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear primer inmueble
-              </Button>
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Código</TableHead>
-                      <TableHead>Título</TableHead>
-                      <TableHead>Propietario</TableHead>
-                      <TableHead>Ciudad</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>Contratos</TableHead>
-                      <TableHead>Registro</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {properties.map((property) => (
-                      <TableRow key={property.id}>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {property.photos.length > 0 ? (
-                              <img
-                                src={property.photos[0].photoUrl}
-                                alt={property.title}
-                                className="h-8 w-8 rounded object-cover"
-                              />
-                            ) : (
-                              <div className="h-8 w-8 rounded bg-muted flex items-center justify-center">
-                                <Home className="h-4 w-4 text-muted-foreground" />
-                              </div>
-                            )}
-                            {property.code}
-                          </div>
-                        </TableCell>
-                        <TableCell>{property.title}</TableCell>
-                        <TableCell>{property.owner.fullName}</TableCell>
-                        <TableCell>{property.city}</TableCell>
-                        <TableCell>{getStatusBadge(property.status)}</TableCell>
-                        <TableCell>
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-sm">
-                            {property._count.leases}
-                          </span>
-                        </TableCell>
-                        <TableCell>{formatDate(property.createdAt)}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(property)} aria-label="Editar">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(property.id)} aria-label="Eliminar">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                            <Link href={`/dashboard/inmuebles/${property.id}`}>
-                              <Button variant="ghost" size="icon" aria-label="Ver detalles">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Mostrando {((pagination.page - 1) * pagination.limit) + 1} a {Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pagination.page === 1}
-                      onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-                    >
-                      Anterior
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={pagination.page === pagination.totalPages}
-                      onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-                    >
-                      Siguiente
-                    </Button>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="sm:w-44">
+                <SelectValue placeholder="Todos los estados" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los estados</SelectItem>
+                {STATUS_OPTIONS.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+        ) : properties.length === 0 ? (
+          <div className="border border-dashed border-border px-6 py-16 text-center">
+            <Building2 className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />
+            <p className="font-medium">No hay inmuebles para mostrar</p>
+            <p className="mt-1 text-sm text-muted-foreground">Registra una propiedad o cambia los filtros.</p>
+            <Button className="mt-5" onClick={handleOpenCreate}><Plus className="mr-2 h-4 w-4" />Crear inmueble</Button>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 xl:grid-cols-2">
+              {properties.map((property) => (
+                <article key={property.id} className="group grid overflow-hidden rounded-lg border border-border/80 bg-card transition-colors hover:border-primary/45 sm:grid-cols-[minmax(12rem,0.95fr)_1.2fr]">
+                  <Link href={`/dashboard/inmuebles/${property.id}`} className="relative block min-h-48 overflow-hidden bg-muted sm:min-h-56" aria-label={`Ver ${property.title}`}>
+                    {property.photos[0] ? (
+                      <img src={property.photos[0].photoUrl} alt={property.photos[0].description || property.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-linear-to-br from-primary/10 via-muted to-amber-500/10 text-muted-foreground">
+                        <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border/70 bg-background/70"><Home className="h-6 w-6" /></div>
+                        <span className="text-xs font-medium">Sin fotografías</span>
+                      </div>
+                    )}
+                    <span className="absolute left-3 top-3 rounded bg-background/95 px-2.5 py-1 font-mono text-xs font-semibold text-foreground shadow-sm">{property.code}</span>
+                    <span className="absolute bottom-3 left-3">{getStatusBadge(property.status)}</span>
+                  </Link>
+
+                  <div className="flex min-w-0 flex-col justify-between p-4 sm:p-5">
+                    <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/dashboard/inmuebles/${property.id}`} className="line-clamp-2 text-lg font-semibold leading-snug hover:text-primary">{property.title}</Link>
+                          <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{property.city}</span></p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-0.5">
+                          <Button variant="ghost" size="icon" onClick={() => handleEdit(property)} aria-label={`Editar ${property.title}`} title="Editar"><Edit className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDelete(property.id)} aria-label={`Eliminar ${property.title}`} title="Eliminar"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </div>
+                      </div>
+                      <div className="mt-5 border-t border-border/70 pt-4">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Propietario</p>
+                        <p className="mt-1 truncate text-sm font-medium">{property.owner.fullName}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-3 border-t border-border/70 pt-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Contratos</p>
+                        <p className="mt-1 text-sm font-semibold">{property._count.leases} <span className="font-normal text-muted-foreground">registrados</span></p>
+                      </div>
+                      <Link href={`/dashboard/inmuebles/${property.id}`} className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
+                        Ver ficha <Eye className="h-4 w-4" />
+                      </Link>
+                    </div>
                   </div>
+                </article>
+              ))}
+            </div>
+
+            {pagination.totalPages > 1 && (
+              <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">Mostrando {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} de {pagination.total}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={pagination.page === 1} onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}>Anterior</Button>
+                  <Button variant="outline" size="sm" disabled={pagination.page === pagination.totalPages} onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}>Siguiente</Button>
                 </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

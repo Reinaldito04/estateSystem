@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isValidPropertyFilename, removePropertyFile } from "@/lib/property-file-storage";
 import { z } from "zod";
 
 const propertyUpdateSchema = z.object({
@@ -8,6 +9,9 @@ const propertyUpdateSchema = z.object({
   title: z.string().min(1).optional(),
   address: z.string().min(1).optional(),
   city: z.string().min(1).optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  customFields: z.record(z.string(), z.string()).optional(),
   condoName: z.string().optional(),
   condoAccountNumber: z.string().optional(),
   electricityAccountNumber: z.string().optional(),
@@ -27,6 +31,9 @@ export async function GET(
       include: {
         owner: true,
         photos: { orderBy: { uploadedAt: "asc" } },
+        interests: { orderBy: { createdAt: "desc" } },
+        comments: { orderBy: { createdAt: "desc" } },
+        reviews: { orderBy: { createdAt: "desc" } },
         leases: {
           include: {
             tenant: { select: { id: true, fullName: true, phone: true } },
@@ -109,7 +116,7 @@ export async function DELETE(
 
     const property = await prisma.property.findUnique({
       where: { id },
-      include: { leases: true, transactions: true, issues: true },
+      include: { leases: true, transactions: true, issues: true, photos: true, documents: true },
     });
 
     if (!property) {
@@ -123,7 +130,18 @@ export async function DELETE(
       );
     }
 
+    const filePrefix = `/api/properties/${id}/media/`;
+    const filenames = [...property.photos.map((photo) => photo.photoUrl), ...property.documents.map((document) => document.fileUrl)]
+      .filter((fileUrl) => fileUrl.startsWith(filePrefix))
+      .map((fileUrl) => fileUrl.slice(filePrefix.length))
+      .filter(isValidPropertyFilename);
+
     await prisma.property.delete({ where: { id } });
+    await Promise.all(filenames.map((filename) =>
+      removePropertyFile(id, filename).catch((error) => {
+        console.error("Error removing property file:", error);
+      })
+    ));
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting property:", error);
