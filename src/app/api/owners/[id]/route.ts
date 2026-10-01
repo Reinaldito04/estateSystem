@@ -12,14 +12,44 @@ const ownerUpdateSchema = z.object({
   bankDetails: z.string().optional(),
 });
 
+type ClientProfileRecord = {
+  id: string;
+  fullName: string;
+  legalDocumentId: string;
+  email: string | null;
+  phone: string;
+  alternatePhone: string | null;
+  address: string | null;
+  bankDetails: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count?: { properties: number };
+};
+
+function toOwner(profile: ClientProfileRecord) {
+  return {
+    id: profile.id,
+    fullName: profile.fullName,
+    documentId: profile.legalDocumentId,
+    email: profile.email,
+    phone: profile.phone,
+    alternatePhone: profile.alternatePhone,
+    address: profile.address,
+    bankDetails: profile.bankDetails,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    _count: profile._count ?? { properties: 0 },
+  };
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const owner = await prisma.owner.findUnique({
-      where: { id },
+    const owner = await prisma.clientProfile.findFirst({
+      where: { id, role: "OWNER" },
       include: {
         properties: {
           include: {
@@ -36,7 +66,11 @@ export async function GET(
       return NextResponse.json({ error: "Propietario no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json(owner);
+    return NextResponse.json({
+      ...toOwner(owner),
+      properties: owner.properties,
+      documents: owner.documents,
+    });
   } catch (error) {
     console.error("Error fetching owner:", error);
     return NextResponse.json({ error: "Error al obtener propietario" }, { status: 500 });
@@ -53,8 +87,8 @@ export async function PUT(
     const validatedData = ownerUpdateSchema.parse(body);
 
     if (validatedData.documentId) {
-      const existingOwner = await prisma.owner.findFirst({
-        where: { documentId: validatedData.documentId, NOT: { id } },
+      const existingOwner = await prisma.clientProfile.findFirst({
+        where: { legalDocumentId: validatedData.documentId, NOT: { id } },
       });
       if (existingOwner) {
         return NextResponse.json(
@@ -64,15 +98,23 @@ export async function PUT(
       }
     }
 
-    const owner = await prisma.owner.update({
+    const owner = await prisma.clientProfile.update({
       where: { id },
-      data: validatedData,
+      data: {
+        ...(validatedData.fullName !== undefined && { fullName: validatedData.fullName }),
+        ...(validatedData.documentId !== undefined && { legalDocumentId: validatedData.documentId }),
+        ...(validatedData.email !== undefined && { email: validatedData.email || null }),
+        ...(validatedData.phone !== undefined && { phone: validatedData.phone }),
+        ...(validatedData.alternatePhone !== undefined && { alternatePhone: validatedData.alternatePhone }),
+        ...(validatedData.address !== undefined && { address: validatedData.address }),
+        ...(validatedData.bankDetails !== undefined && { bankDetails: validatedData.bankDetails }),
+      },
       include: {
         _count: { select: { properties: true } },
       },
     });
 
-    return NextResponse.json(owner);
+    return NextResponse.json(toOwner(owner));
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
@@ -88,9 +130,9 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    
-    const owner = await prisma.owner.findUnique({
-      where: { id },
+
+    const owner = await prisma.clientProfile.findFirst({
+      where: { id, role: "OWNER" },
       include: { properties: true },
     });
 
@@ -105,7 +147,7 @@ export async function DELETE(
       );
     }
 
-    await prisma.owner.delete({ where: { id } });
+    await prisma.clientProfile.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting owner:", error);

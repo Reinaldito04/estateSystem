@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { interestStatusToUi, toInterestStatus } from "@/lib/enum-mapping";
 
 const crmRecordSchema = z.discriminatedUnion("type", [
   z.object({
@@ -56,7 +57,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ error: "Inmueble no encontrado" }, { status: 404 });
     }
 
-    return NextResponse.json(property);
+    return NextResponse.json({
+      ...property,
+      interests: property.interests.map((interest) => ({ ...interest, status: interestStatusToUi(interest.status) })),
+    });
   } catch (error) {
     console.error("Error fetching property CRM:", error);
     return NextResponse.json({ error: "Error al obtener actividad del inmueble" }, { status: 500 });
@@ -78,10 +82,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 
     const interest = await prisma.propertyInterest.update({
       where: { id: body.id },
-      data: { status: body.status },
+      data: { status: toInterestStatus(body.status) },
     });
 
-    return NextResponse.json(interest);
+    return NextResponse.json({ ...interest, status: interestStatusToUi(interest.status) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
@@ -109,7 +113,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             email: body.email || null,
             phone: body.phone || null,
             source: body.source || null,
-            status: body.status,
+            status: toInterestStatus(body.status),
             notes: body.notes || null,
           },
         })
@@ -126,7 +130,11 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
             },
           });
 
-    return NextResponse.json(data, { status: 201 });
+    const responseData = body.type === "interest"
+      ? { ...data, status: interestStatusToUi((data as { status: Parameters<typeof interestStatusToUi>[0] }).status) }
+      : data;
+
+    return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

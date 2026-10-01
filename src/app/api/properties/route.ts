@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
 
 const propertySchema = z.object({
   code: z.string().min(1, "Código es requerido"),
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
           { city: { contains: search, mode: "insensitive" as const } },
         ],
       }),
-      ...(status && { status }),
+      ...(status && { status: toPropertyStatus(status) }),
       ...(ownerId && { ownerId }),
     };
 
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      data: properties,
+      data: properties.map((property) => ({ ...property, status: propertyStatusToUi(property.status) })),
       pagination: {
         page,
         limit,
@@ -102,7 +103,11 @@ export async function POST(request: NextRequest) {
     }
 
     const property = await prisma.property.create({
-      data: validatedData,
+      data: {
+        ...validatedData,
+        propertyType: toPropertyType(validatedData.propertyType),
+        status: toPropertyStatus(validatedData.status),
+      },
       include: {
         owner: { select: { id: true, fullName: true, phone: true } },
         photos: true,
@@ -110,7 +115,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(property, { status: 201 });
+    return NextResponse.json({ ...property, status: propertyStatusToUi(property.status) }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

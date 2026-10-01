@@ -11,15 +11,16 @@ const leaseSchema = z.object({
   startDate: z.string().transform((s) => new Date(s)),
   endDate: z.string().transform((s) => new Date(s)),
   monthlyCanonAmount: z.number().positive("Canon mensual debe ser positivo"),
+  currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).default("USD"),
   depositAmount: z.number().min(0).default(0),
   reservationAmount: z.number().min(0).default(0),
   contractFeeAmount: z.number().min(0).default(0),
   contractFileUrl: z.string().optional(),
   isActive: z.boolean().default(true),
-  contractStatus: z.enum(["DRAFT", "IN_REVIEW", "PENDING_SIGNATURE", "ACTIVE", "EXPIRED", "CANCELLED"]).default("DRAFT"),
-  renewalMode: z.enum(["MANUAL", "AUTOMATIC"]).default("MANUAL"),
+  contractStatus: z.enum(["DRAFT", "IN_REVIEW", "PENDING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED", "CANCELLED"]).default("DRAFT"),
+  renewalMode: z.enum(["MANUAL", "AUTOMATIC", "NONE"]).default("MANUAL"),
   renewalNoticeDays: z.number().int().min(1).max(365).default(30),
-  priceAdjustmentType: z.enum(["NONE", "IPC", "FIXED_PERCENT", "INDEX"]).default("NONE"),
+  priceAdjustmentType: z.enum(["NONE", "IPC", "FIXED_PERCENT", "FIXED_AMOUNT", "PERCENTAGE", "INDEX"]).default("NONE"),
   priceAdjustmentValue: z.number().min(0).nullable().optional(),
   priceAdjustmentIndex: z.string().optional(),
   nextAdjustmentDate: z.string().transform((s) => new Date(s)).nullable().optional(),
@@ -36,6 +37,25 @@ const leaseSchema = z.object({
   signedAt: z.string().transform((s) => new Date(s)).nullable().optional(),
   signedIp: z.string().optional(),
 });
+
+const CONTRACT_STATUS_MAP = {
+  DRAFT: "DRAFT",
+  IN_REVIEW: "PENDING_SIGNATURE",
+  PENDING_SIGNATURE: "PENDING_SIGNATURE",
+  ACTIVE: "ACTIVE",
+  EXPIRED: "EXPIRED",
+  TERMINATED: "TERMINATED",
+  CANCELLED: "CANCELLED",
+} as const;
+
+const PRICE_ADJUSTMENT_MAP = {
+  NONE: "NONE",
+  IPC: "INDEX",
+  FIXED_PERCENT: "PERCENTAGE",
+  FIXED_AMOUNT: "FIXED_AMOUNT",
+  PERCENTAGE: "PERCENTAGE",
+  INDEX: "INDEX",
+} as const;
 
 async function validateClient(clientProfileId: string) {
   const client = await prisma.clientProfile.findUnique({
@@ -94,6 +114,8 @@ export async function GET(request: NextRequest) {
           transactions: { select: { category: true, amount: true, paymentDate: true } },
           _count: { select: { transactions: true, notices: true } },
           template: { select: { id: true, name: true, contractType: true } },
+          signature: true,
+          guarantors: true,
         },
       }),
       prisma.lease.count({ where }),
@@ -105,6 +127,9 @@ export async function GET(request: NextRequest) {
         clientProfileId: lease.leaseClients[0]?.client.id || null,
         tenant: lease.leaseClients[0]?.client || null,
         leaseClients: undefined,
+        signatureStatus: lease.signature?.status ?? "NOT_REQUIRED",
+        signatureProvider: lease.signature?.provider ?? null,
+        guarantorName: lease.guarantors[0]?.fullName ?? null,
         balance: calculateLeaseBalance(
           lease.startDate,
           lease.endDate,
@@ -132,7 +157,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = leaseSchema.parse(body);
-    const { clientProfileId, ...leaseData } = validatedData;
+    const {
+      clientProfileId,
+      guarantorRequired,
+      guarantorName,
+      guarantorDocumentId,
+      guarantorPhone,
+      guarantorEmail,
+      signatureProvider,
+      signatureEnvelopeId,
+      signatureStatus,
+      signedAt,
+      signedIp,
+      ...leaseData
+    } = validatedData;
     await validateClient(clientProfileId);
 
     const existingLease = await prisma.lease.findUnique({
@@ -149,7 +187,34 @@ export async function POST(request: NextRequest) {
     const lease = await prisma.lease.create({
       data: {
         ...leaseData,
+        contractStatus: CONTRACT_STATUS_MAP[leaseData.contractStatus],
+        priceAdjustmentType: PRICE_ADJUSTMENT_MAP[leaseData.priceAdjustmentType],
         leaseClients: { create: { clientId: clientProfileId, role: "TENANT" } },
+        ...(guarantorRequired && guarantorName
+          ? {
+              guarantors: {
+                create: {
+                  fullName: guarantorName,
+                  legalDocumentId: guarantorDocumentId,
+                  phone: guarantorPhone,
+                  email: guarantorEmail || null,
+                },
+              },
+            }
+          : {}),
+        ...(signatureStatus !== "NOT_REQUIRED"
+          ? {
+              signature: {
+                create: {
+                  provider: signatureProvider,
+                  envelopeId: signatureEnvelopeId,
+                  status: signatureStatus,
+                  signedAt: signedAt ?? undefined,
+                  signedIp,
+                },
+              },
+            }
+          : {}),
         monthlyCanonAmount: new Prisma.Decimal(leaseData.monthlyCanonAmount),
         depositAmount: new Prisma.Decimal(leaseData.depositAmount),
         reservationAmount: new Prisma.Decimal(leaseData.reservationAmount),
@@ -159,6 +224,8 @@ export async function POST(request: NextRequest) {
       include: {
         property: { select: { id: true, code: true, title: true, address: true } },
         leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, legalDocumentId: true, phone: true, email: true } } } },
+        guarantors: true,
+        signature: true,
         _count: { select: { transactions: true, notices: true } },
       },
     });

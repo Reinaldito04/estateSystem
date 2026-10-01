@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { clientStatusToUi, toClientStatus } from "@/lib/enum-mapping";
 
 const clientUpdateSchema = z.object({
   fullName: z.string().min(1).optional(),
@@ -78,6 +79,7 @@ export async function GET(
 
     return NextResponse.json({
       ...client,
+      status: clientStatusToUi(client.status),
       tenantOperations: client.role === "TENANT"
         ? {
             id: client.id,
@@ -127,6 +129,7 @@ export async function PUT(
       where: { id },
       data: {
         ...clientPayload,
+        status: clientPayload.status === undefined ? undefined : toClientStatus(clientPayload.status),
         email: clientPayload.email === "" ? null : clientPayload.email,
         monthlyIncome:
           monthlyIncome !== undefined && monthlyIncome !== null
@@ -146,7 +149,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(client);
+    return NextResponse.json({ ...client, status: clientStatusToUi(client.status) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

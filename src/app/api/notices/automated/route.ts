@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
         select: { id: true, contractNumber: true, nextAdjustmentDate: true, priceAdjustmentType: true, property: { select: { code: true, title: true } }, leaseClients: { where: { role: "TENANT" }, select: { client: { select: { fullName: true } } } } },
         orderBy: { nextAdjustmentDate: "asc" },
       }),
-      prisma.owner.findMany({ where: { identityDocumentExpiresAt: { gte: now, lte: until } }, select: { id: true, fullName: true, identityDocumentExpiresAt: true } }),
+      prisma.clientProfile.findMany({ where: { role: "OWNER", identityDocumentExpiresAt: { gte: now, lte: until } }, select: { id: true, fullName: true, identityDocumentExpiresAt: true } }),
       prisma.clientProfile.findMany({ where: { role: "TENANT", identityDocumentExpiresAt: { gte: now, lte: until } }, select: { id: true, fullName: true, identityDocumentExpiresAt: true } }),
     ]);
 

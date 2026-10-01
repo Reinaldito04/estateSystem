@@ -18,6 +18,12 @@ const signatureSchema = z.object({
   signatureData: z.string().startsWith("data:image/png;base64,").optional(),
 });
 
+type SignatureStatusValue = "NOT_REQUIRED" | "PENDING" | "SENT" | "SIGNED" | "DECLINED" | "EXPIRED";
+
+function toSignatureStatus(status: string): SignatureStatusValue {
+  return status === "CANCELLED" ? "DECLINED" : (status as SignatureStatusValue);
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -34,12 +40,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const signedAt = new Date();
       const signatureHash = createHash("sha256").update(`${lease.id}|${lease.contractNumber}|${lease.draftContent}|${data.signatureData}|${data.signerName}|${signedAt.toISOString()}`).digest("hex");
       const event = await prisma.contractSignatureEvent.create({ data: { leaseId: id, provider: "LOCAL", eventType: "SIGN", status: "SIGNED", ipAddress, actorName: data.signerName, metadata: { mode: "LOCAL", signerRole: data.signerRole || "", signatureHash } as Prisma.InputJsonValue } });
-      await prisma.lease.update({ where: { id }, data: { signatureProvider: "LOCAL", signatureMethod: "LOCAL_CANVAS_SHA256", signedBy: data.signerName, signatureHash, signatureData: data.signatureData, signatureConsentAt: signedAt, signatureStatus: "SIGNED", signedAt, signedIp: ipAddress, contractStatus: "ACTIVE" } });
+      await prisma.leaseSignature.upsert({
+        where: { leaseId: id },
+        create: { leaseId: id, provider: "LOCAL", method: "ELECTRONIC", signedBy: data.signerName, signatureHash, signatureData: data.signatureData, signatureConsentAt: signedAt, status: "SIGNED", signedAt, signedIp: ipAddress },
+        update: { provider: "LOCAL", method: "ELECTRONIC", signedBy: data.signerName, signatureHash, signatureData: data.signatureData, signatureConsentAt: signedAt, status: "SIGNED", signedAt, signedIp: ipAddress },
+      });
+      await prisma.lease.update({ where: { id }, data: { contractStatus: "ACTIVE" } });
       return NextResponse.json({ ...event, signatureHash, signatureData: data.signatureData, signedAt, signedBy: data.signerName }, { status: 201 });
     }
 
+    const status = toSignatureStatus(data.status);
+    const signedAt = status === "SIGNED" ? new Date() : undefined;
     const event = await prisma.contractSignatureEvent.create({ data: { leaseId: id, provider: data.provider, eventType: data.eventType, status: data.status, ipAddress, actorName: data.actorName, metadata: data.metadata as Prisma.InputJsonValue } });
-    await prisma.lease.update({ where: { id }, data: { signatureProvider: data.provider, signatureEnvelopeId: data.envelopeId, signatureStatus: data.status, signedAt: data.status === "SIGNED" ? new Date() : undefined, signedIp: data.status === "SIGNED" ? ipAddress : undefined, contractStatus: data.status === "SIGNED" ? "ACTIVE" : undefined } });
+    await prisma.leaseSignature.upsert({
+      where: { leaseId: id },
+      create: { leaseId: id, provider: data.provider, envelopeId: data.envelopeId, status, method: "ELECTRONIC", signedAt, signedIp: status === "SIGNED" ? ipAddress : undefined },
+      update: { provider: data.provider, envelopeId: data.envelopeId, status, method: "ELECTRONIC", ...(signedAt !== undefined && { signedAt }), ...(status === "SIGNED" && { signedIp: ipAddress }) },
+    });
+    if (status === "SIGNED") {
+      await prisma.lease.update({ where: { id }, data: { contractStatus: "ACTIVE" } });
+    }
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });

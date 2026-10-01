@@ -1,1 +1,0 @@
-ALTER TABLE "Lease" ADD COLUMN "signatureData" TEXT;

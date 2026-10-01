@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { toVisitStatus } from "@/lib/enum-mapping";
 
 const visitUpdateSchema = z.object({
   status: z.enum(["scheduled", "completed", "cancelled", "no_show"]).optional(),
@@ -12,7 +13,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id, visitId } = await params;
     const body = visitUpdateSchema.parse(await request.json());
-    const visit = await prisma.propertyVisit.updateMany({ where: { id: visitId, propertyId: id }, data: body });
+    const { status, ...visitFields } = body;
+    const visit = await prisma.propertyVisit.updateMany({
+      where: { id: visitId, propertyId: id },
+      data: {
+        ...visitFields,
+        ...(status !== undefined && { status: toVisitStatus(status) }),
+      },
+    });
     if (visit.count === 0) return NextResponse.json({ error: "Visita no encontrada" }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (error) {

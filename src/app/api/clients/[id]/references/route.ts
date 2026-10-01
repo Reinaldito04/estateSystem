@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { toReferenceType } from "@/lib/enum-mapping";
 
 const referenceSchema = z.object({
   referenceType: z.string().default("PERSONAL"),
@@ -28,7 +29,7 @@ export async function POST(
     const reference = await prisma.clientReference.create({
       data: {
         clientId: id,
-        referenceType: body.referenceType,
+        referenceType: toReferenceType(body.referenceType),
         fullName: body.fullName,
         relationship: body.relationship || null,
         company: body.company || null,

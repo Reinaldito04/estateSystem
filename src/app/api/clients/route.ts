@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { clientStatusToUi, toClientStatus } from "@/lib/enum-mapping";
 
 const clientSchema = z.object({
   fullName: z.string().min(1, "El nombre es requerido"),
@@ -61,7 +62,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      data: clients,
+      data: clients.map((client) => ({ ...client, status: clientStatusToUi(client.status) })),
       pagination: {
         page,
         limit,
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
     const client = await prisma.clientProfile.create({
       data: {
         ...clientPayload,
+        status: toClientStatus(clientPayload.status),
         monthlyIncome: monthlyIncome !== undefined && monthlyIncome !== null
           ? new Prisma.Decimal(monthlyIncome)
           : null,
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(client, { status: 201 });
+    return NextResponse.json({ ...client, status: clientStatusToUi(client.status) }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

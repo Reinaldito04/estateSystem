@@ -11,15 +11,16 @@ const leaseUpdateSchema = z.object({
   startDate: z.string().transform((s) => new Date(s)).optional(),
   endDate: z.string().transform((s) => new Date(s)).optional(),
   monthlyCanonAmount: z.number().positive().optional(),
+  currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).optional(),
   depositAmount: z.number().min(0).optional(),
   reservationAmount: z.number().min(0).optional(),
   contractFeeAmount: z.number().min(0).optional(),
   contractFileUrl: z.string().optional(),
   isActive: z.boolean().optional(),
-  contractStatus: z.enum(["DRAFT", "IN_REVIEW", "PENDING_SIGNATURE", "ACTIVE", "EXPIRED", "CANCELLED"]).optional(),
-  renewalMode: z.enum(["MANUAL", "AUTOMATIC"]).optional(),
+  contractStatus: z.enum(["DRAFT", "IN_REVIEW", "PENDING_SIGNATURE", "ACTIVE", "EXPIRED", "TERMINATED", "CANCELLED"]).optional(),
+  renewalMode: z.enum(["MANUAL", "AUTOMATIC", "NONE"]).optional(),
   renewalNoticeDays: z.number().int().min(1).max(365).optional(),
-  priceAdjustmentType: z.enum(["NONE", "IPC", "FIXED_PERCENT", "INDEX"]).optional(),
+  priceAdjustmentType: z.enum(["NONE", "IPC", "FIXED_PERCENT", "FIXED_AMOUNT", "PERCENTAGE", "INDEX"]).optional(),
   priceAdjustmentValue: z.number().min(0).nullable().optional(),
   priceAdjustmentIndex: z.string().optional(),
   nextAdjustmentDate: z.string().transform((s) => new Date(s)).nullable().optional(),
@@ -36,6 +37,25 @@ const leaseUpdateSchema = z.object({
   signedAt: z.string().transform((s) => new Date(s)).nullable().optional(),
   signedIp: z.string().optional(),
 });
+
+const CONTRACT_STATUS_MAP = {
+  DRAFT: "DRAFT",
+  IN_REVIEW: "PENDING_SIGNATURE",
+  PENDING_SIGNATURE: "PENDING_SIGNATURE",
+  ACTIVE: "ACTIVE",
+  EXPIRED: "EXPIRED",
+  TERMINATED: "TERMINATED",
+  CANCELLED: "CANCELLED",
+} as const;
+
+const PRICE_ADJUSTMENT_MAP = {
+  NONE: "NONE",
+  IPC: "INDEX",
+  FIXED_PERCENT: "PERCENTAGE",
+  FIXED_AMOUNT: "FIXED_AMOUNT",
+  PERCENTAGE: "PERCENTAGE",
+  INDEX: "INDEX",
+} as const;
 
 async function validateClient(clientProfileId: string) {
   const client = await prisma.clientProfile.findUnique({
@@ -74,6 +94,8 @@ export async function GET(
         _count: { select: { transactions: true, notices: true } },
         template: { select: { id: true, name: true, contractType: true } },
         signatureEvents: { orderBy: { createdAt: "desc" } },
+        signature: true,
+        guarantors: { orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -81,11 +103,29 @@ export async function GET(
       return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
     }
 
-    const { leaseClients, ...leaseData } = lease;
+    const { leaseClients, signature, guarantors, ...leaseData } = lease;
+    const guarantor = guarantors[0];
     return NextResponse.json({
       ...leaseData,
       clientProfileId: leaseClients[0]?.client.id || null,
       tenant: leaseClients[0]?.client || null,
+      guarantors,
+      signature,
+      guarantorRequired: guarantors.length > 0,
+      guarantorName: guarantor?.fullName ?? null,
+      guarantorDocumentId: guarantor?.legalDocumentId ?? null,
+      guarantorPhone: guarantor?.phone ?? null,
+      guarantorEmail: guarantor?.email ?? null,
+      signatureStatus: signature?.status ?? "NOT_REQUIRED",
+      signatureProvider: signature?.provider ?? null,
+      signatureEnvelopeId: signature?.envelopeId ?? null,
+      signatureMethod: signature?.method ?? "NONE",
+      signedBy: signature?.signedBy ?? null,
+      signatureHash: signature?.signatureHash ?? null,
+      signatureData: signature?.signatureData ?? null,
+      signatureConsentAt: signature?.signatureConsentAt ?? null,
+      signedAt: signature?.signedAt ?? null,
+      signedIp: signature?.signedIp ?? null,
       balance: calculateLeaseBalance(
         lease.startDate,
         lease.endDate,
@@ -123,8 +163,28 @@ export async function PUT(
       }
     }
 
-    const { clientProfileId, ...leaseFields } = validatedData;
-    const updateData: Prisma.LeaseUpdateInput = { ...leaseFields };
+    const {
+      clientProfileId,
+      guarantorRequired,
+      guarantorName,
+      guarantorDocumentId,
+      guarantorPhone,
+      guarantorEmail,
+      signatureProvider,
+      signatureEnvelopeId,
+      signatureStatus,
+      signedAt,
+      signedIp,
+      contractStatus,
+      priceAdjustmentType,
+      ...leaseFields
+    } = validatedData;
+
+    const updateData: Prisma.LeaseUpdateInput = {
+      ...leaseFields,
+      ...(contractStatus !== undefined && { contractStatus: CONTRACT_STATUS_MAP[contractStatus] }),
+      ...(priceAdjustmentType !== undefined && { priceAdjustmentType: PRICE_ADJUSTMENT_MAP[priceAdjustmentType] }),
+    };
     if (clientProfileId) {
       await validateClient(clientProfileId);
       updateData.leaseClients = {
@@ -148,12 +208,71 @@ export async function PUT(
       updateData.priceAdjustmentValue = validatedData.priceAdjustmentValue === null ? null : new Prisma.Decimal(validatedData.priceAdjustmentValue);
     }
 
+    const hasGuarantorInput =
+      guarantorRequired !== undefined ||
+      guarantorName !== undefined ||
+      guarantorDocumentId !== undefined ||
+      guarantorPhone !== undefined ||
+      guarantorEmail !== undefined;
+
+    if (hasGuarantorInput) {
+      const shouldKeepGuarantor = guarantorRequired === true || (guarantorRequired === undefined && Boolean(guarantorName));
+      if (shouldKeepGuarantor && guarantorName) {
+        updateData.guarantors = {
+          deleteMany: {},
+          create: {
+            fullName: guarantorName,
+            legalDocumentId: guarantorDocumentId,
+            phone: guarantorPhone,
+            email: guarantorEmail || null,
+          },
+        };
+      } else if (guarantorRequired === false) {
+        updateData.guarantors = { deleteMany: {} };
+      }
+    }
+
+    const hasSignatureInput =
+      signatureProvider !== undefined ||
+      signatureEnvelopeId !== undefined ||
+      signatureStatus !== undefined ||
+      signedAt !== undefined ||
+      signedIp !== undefined;
+
+    if (hasSignatureInput) {
+      const status = signatureStatus ?? "NOT_REQUIRED";
+      if (status === "NOT_REQUIRED") {
+        await prisma.leaseSignature.deleteMany({ where: { leaseId: id } });
+      } else {
+        updateData.signature = {
+          upsert: {
+            create: {
+              provider: signatureProvider,
+              envelopeId: signatureEnvelopeId,
+              status,
+              signedAt: signedAt ?? undefined,
+              signedIp,
+            },
+            update: {
+              ...(signatureProvider !== undefined && { provider: signatureProvider }),
+              ...(signatureEnvelopeId !== undefined && { envelopeId: signatureEnvelopeId }),
+              status,
+              ...(signedAt !== undefined && { signedAt }),
+              ...(signedIp !== undefined && { signedIp }),
+            },
+          },
+        };
+      }
+    }
+
     const lease = await prisma.lease.update({
       where: { id },
       data: updateData,
       include: {
         property: { select: { id: true, code: true, title: true, address: true } },
         leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, legalDocumentId: true, phone: true, email: true } } } },
+        guarantors: true,
+        signature: true,
         _count: { select: { transactions: true, notices: true } },
       },
     });

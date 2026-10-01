@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       tenant,
       propertyOwner: lease.property.owner,
     });
-    const updated = await prisma.lease.update({ where: { id }, data: { templateId: template.id === DEFAULT_LEASE_TEMPLATE.id ? null : template.id, draftContent, contractStatus: "IN_REVIEW" } });
+    const updated = await prisma.lease.update({ where: { id }, data: { templateId: template.id === DEFAULT_LEASE_TEMPLATE.id ? null : template.id, draftContent, contractStatus: "PENDING_SIGNATURE" } });
     return NextResponse.json({ draftContent, contractStatus: updated.contractStatus, template: { id: template.id, name: template.name } });
   } catch (error) {
     if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });

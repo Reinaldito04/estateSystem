@@ -12,6 +12,36 @@ const ownerSchema = z.object({
   bankDetails: z.string().optional(),
 });
 
+type ClientProfileRecord = {
+  id: string;
+  fullName: string;
+  legalDocumentId: string;
+  email: string | null;
+  phone: string;
+  alternatePhone: string | null;
+  address: string | null;
+  bankDetails: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  _count?: { properties: number };
+};
+
+function toOwner(profile: ClientProfileRecord) {
+  return {
+    id: profile.id,
+    fullName: profile.fullName,
+    documentId: profile.legalDocumentId,
+    email: profile.email,
+    phone: profile.phone,
+    alternatePhone: profile.alternatePhone,
+    address: profile.address,
+    bankDetails: profile.bankDetails,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    _count: profile._count ?? { properties: 0 },
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -20,19 +50,23 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const skip = (page - 1) * limit;
 
-    const where = search
-      ? {
-          OR: [
-            { fullName: { contains: search, mode: "insensitive" as const } },
-            { documentId: { contains: search, mode: "insensitive" as const } },
-            { email: { contains: search, mode: "insensitive" as const } },
-            { phone: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    const where = {
+      role: "OWNER" as const,
+      deletedAt: null,
+      ...(search
+        ? {
+            OR: [
+              { fullName: { contains: search, mode: "insensitive" as const } },
+              { legalDocumentId: { contains: search, mode: "insensitive" as const } },
+              { email: { contains: search, mode: "insensitive" as const } },
+              { phone: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
 
     const [owners, total] = await Promise.all([
-      prisma.owner.findMany({
+      prisma.clientProfile.findMany({
         where,
         skip,
         take: limit,
@@ -41,11 +75,11 @@ export async function GET(request: NextRequest) {
           _count: { select: { properties: true } },
         },
       }),
-      prisma.owner.count({ where }),
+      prisma.clientProfile.count({ where }),
     ]);
 
     return NextResponse.json({
-      data: owners,
+      data: owners.map(toOwner),
       pagination: {
         page,
         limit,
@@ -64,8 +98,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = ownerSchema.parse(body);
 
-    const existingOwner = await prisma.owner.findUnique({
-      where: { documentId: validatedData.documentId },
+    const existingOwner = await prisma.clientProfile.findUnique({
+      where: { legalDocumentId: validatedData.documentId },
     });
 
     if (existingOwner) {
@@ -75,14 +109,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const owner = await prisma.owner.create({
-      data: validatedData,
+    const owner = await prisma.clientProfile.create({
+      data: {
+        fullName: validatedData.fullName,
+        legalDocumentId: validatedData.documentId,
+        email: validatedData.email || null,
+        phone: validatedData.phone,
+        alternatePhone: validatedData.alternatePhone,
+        address: validatedData.address,
+        bankDetails: validatedData.bankDetails,
+        role: "OWNER",
+        status: "ACTIVE",
+      },
       include: {
         _count: { select: { properties: true } },
       },
     });
 
-    return NextResponse.json(owner, { status: 201 });
+    return NextResponse.json(toOwner(owner), { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

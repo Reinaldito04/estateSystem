@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isValidPropertyFilename, removePropertyFile } from "@/lib/property-file-storage";
 import { calculateLeaseBalance } from "@/lib/lease-balance";
 import { z } from "zod";
+import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
 
 const propertyUpdateSchema = z.object({
   code: z.string().min(1).optional(),
@@ -78,6 +79,7 @@ export async function GET(
 
     return NextResponse.json({
       ...property,
+      status: propertyStatusToUi(property.status),
       leases: property.leases.map(({ transactions, leaseClients, ...lease }) => ({
         ...lease,
         tenant: leaseClients[0]?.client || null,
@@ -120,9 +122,16 @@ export async function PUT(
       }
     }
 
+    const { ownerId, propertyType, status, ...propertyFields } = validatedData;
+
     const property = await prisma.property.update({
       where: { id },
-      data: validatedData,
+      data: {
+        ...propertyFields,
+        ...(ownerId !== undefined && { owner: { connect: { id: ownerId } } }),
+        ...(propertyType !== undefined && { propertyType: toPropertyType(propertyType) }),
+        ...(status !== undefined && { status: toPropertyStatus(status) }),
+      },
       include: {
         owner: { select: { id: true, fullName: true, phone: true } },
         photos: true,
@@ -130,7 +139,7 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json(property);
+    return NextResponse.json({ ...property, status: propertyStatusToUi(property.status) });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
