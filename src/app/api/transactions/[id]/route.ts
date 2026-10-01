@@ -17,7 +17,10 @@ const transactionUpdateSchema = z.object({
     "OTHER_SERVICE",
   ]).optional(),
   amount: z.number().positive().optional(),
+  currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).optional(),
+  status: z.enum(["PENDING", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]).optional(),
   paymentDate: z.string().transform((s) => new Date(s)).optional(),
+  dueDate: z.string().transform((s) => new Date(s)).optional().nullable(),
   paymentMethod: z.string().min(1).optional(),
   referenceNumber: z.string().optional(),
   receiptUrl: z.string().optional(),
@@ -57,10 +60,17 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     const validatedData = transactionUpdateSchema.parse(body);
+    const { leaseId, amount, dueDate, ...rest } = validatedData;
 
-    const updateData: Prisma.TransactionUpdateInput = { ...validatedData };
-    if (validatedData.amount) {
-      updateData.amount = new Prisma.Decimal(validatedData.amount);
+    const updateData: Prisma.TransactionUpdateInput = {
+      ...rest,
+      ...(leaseId !== undefined && {
+        lease: leaseId ? { connect: { id: leaseId } } : { disconnect: true },
+      }),
+      ...(dueDate !== undefined && { dueDate }),
+    };
+    if (amount !== undefined) {
+      updateData.amount = new Prisma.Decimal(amount);
     }
 
     const transaction = await prisma.transaction.update({

@@ -5,12 +5,16 @@ import { Prisma } from "@prisma/client";
 
 const issueSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
-  clientId: z.string().uuid().optional(),
-  tenantId: z.string().uuid().optional(),
+  clientId: z.string().uuid().optional().nullable(),
+  tenantId: z.string().uuid().optional().nullable(),
   issueType: z.string().min(1, "Tipo de avería es requerido"),
   description: z.string().min(1, "Descripción es requerida"),
   status: z.enum(["REPORTED", "IN_PROGRESS", "RESOLVED", "CANCELLED"]).default("REPORTED"),
-  repairDate: z.string().transform((s) => new Date(s)).optional(),
+  reportDate: z.string().transform((s) => new Date(s)).optional().nullable(),
+  reportedByType: z.enum(["CLIENT", "OWNER", "USER", "SYSTEM"]).default("CLIENT"),
+  reportedByUserId: z.string().uuid().optional().nullable(),
+  providerId: z.string().uuid().optional().nullable(),
+  repairDate: z.string().transform((s) => new Date(s)).optional().nullable(),
   repairDetails: z.string().optional(),
   repairCost: z.number().min(0).default(0),
   receiptUrl: z.string().optional(),
@@ -82,13 +86,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = issueSchema.parse(body);
-    const { clientId: requestedClientId, tenantId: legacyClientId, ...issueData } = validatedData;
-    const clientId = requestedClientId || legacyClientId;
-    if (!clientId) return NextResponse.json({ error: "Cliente es requerido" }, { status: 400 });
+    const { clientId: requestedClientId, tenantId: legacyClientId, reportDate, ...issueData } = validatedData;
+    const clientId = requestedClientId || legacyClientId || null;
 
     const issue = await prisma.propertyIssue.create({
       data: {
         ...issueData,
+        ...(reportDate ? { reportDate } : {}),
         clientId,
         repairCost: new Prisma.Decimal(validatedData.repairCost),
       },

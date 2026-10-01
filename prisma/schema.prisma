@@ -217,6 +217,93 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum NoticeRecipient {
+  OWNER
+  TENANT
+}
+
+enum AccountStatementAudience {
+  OWNER
+  TENANT
+}
+
+enum AssetCondition {
+  NEW
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+enum AssetStatus {
+  ACTIVE
+  UNDER_REPAIR
+  RETIRED
+}
+
+enum ProviderType {
+  LABOR
+  MATERIALS
+  SERVICE
+  MAINTENANCE
+  OTHER
+}
+
+enum TaskCategory {
+  REVIEW
+  MAINTENANCE
+  PAYMENT
+  CONTRACT
+  VISIT
+  OTHER
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum RecurrenceFrequency {
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum ReservationType {
+  VISIT
+  LEASE_HOLD
+  MAINTENANCE
+  BLOCK
+}
+
 // ---------------------------------------------------------------------------
 // Users & auditing
 // ---------------------------------------------------------------------------
@@ -242,6 +329,13 @@ model User {
   propertyIssues       PropertyIssue[]
   contractTemplates    ContractTemplate[]
   clientCommunications ClientCommunication[]
+  accountStatements    AccountStatement[]
+  assets               Asset[]                  @relation("AssetCreatedBy")
+  providers            ServiceProvider[]        @relation("ProviderCreatedBy")
+  plans                MaintenancePlan[]        @relation("PlanCreatedBy")
+  tasksAssigned        Task[]                   @relation("TaskAssignee")
+  tasksCreated         Task[]                   @relation("TaskCreatedBy")
+  reservations         PropertyReservation[]    @relation("ReservationCreatedBy")
 
   @@index([role, status])
   @@map("users")
@@ -296,16 +390,19 @@ model ClientProfile {
   updatedAt                 DateTime             @updatedAt @map("updated_at")
   deletedAt                 DateTime?            @map("deleted_at")
 
-  references     ClientReference[]
-  communications ClientCommunication[]
-  riskDocuments  ClientRiskDocument[]
-  leaseClients   LeaseClient[]
-  properties     Property[]
-  propertyIssues PropertyIssue[]
-  interests      PropertyInterest[]
-  visits         PropertyVisit[]
-  documents      EntityDocument[]
-  guarantors     LeaseGuarantor[]
+  references        ClientReference[]
+  communications    ClientCommunication[]
+  riskDocuments     ClientRiskDocument[]
+  leaseClients      LeaseClient[]
+  properties        Property[]
+  propertyIssues    PropertyIssue[]
+  interests         PropertyInterest[]
+  visits            PropertyVisit[]
+  documents         EntityDocument[]
+  guarantors        LeaseGuarantor[]
+  accountStatements AccountStatement[]
+  tasks             Task[]
+  reservations      PropertyReservation[]
 
   @@index([role, status])
   @@map("client_profiles")
@@ -364,35 +461,41 @@ model ClientRiskDocument {
 // ---------------------------------------------------------------------------
 
 model Property {
-  id                       String             @id @default(uuid())
-  code                     String             @unique
-  ownerId                  String             @map("owner_id")
-  owner                    ClientProfile      @relation(fields: [ownerId], references: [id])
+  id                       String                @id @default(uuid())
+  code                     String                @unique
+  ownerId                  String                @map("owner_id")
+  owner                    ClientProfile         @relation(fields: [ownerId], references: [id])
   title                    String
   address                  String
   city                     String
   latitude                 Float?
   longitude                Float?
-  propertyType             PropertyType       @default(APARTMENT) @map("property_type")
-  totalAreaSqm             Float?             @map("total_area_sqm")
-  builtAreaSqm             Float?             @map("built_area_sqm")
+  propertyType             PropertyType          @default(APARTMENT) @map("property_type")
+  totalAreaSqm             Float?                @map("total_area_sqm")
+  builtAreaSqm             Float?                @map("built_area_sqm")
   bedrooms                 Int?
   bathrooms                Int?
-  parkingSpaces            Int?               @map("parking_spaces")
-  amenities                Json               @default("[]")
-  customFields             Json               @default("{}") @map("custom_fields")
-  condoName                String?            @map("condo_name")
-  condoAccountNumber       String?            @map("condo_account_number")
-  electricityAccountNumber String?            @map("electricity_account_number")
-  internetProvider         String?            @map("internet_provider")
-  internetAccountNumber    String?            @map("internet_account_number")
-  videoUrl                 String?            @map("video_url")
-  floorPlanUrl             String?            @map("floor_plan_url")
-  virtualTourUrl           String?            @map("virtual_tour_url")
-  captureCommission        Decimal?           @map("capture_commission") @db.Decimal(5, 2)
-  captureExclusive         Boolean            @default(false) @map("capture_exclusive")
-  captureContractUrl       String?            @map("capture_contract_url")
-  status                   PropertyStatus     @default(AVAILABLE)
+  parkingSpaces            Int?                  @map("parking_spaces")
+  amenities                Json                  @default("[]")
+  customFields             Json                  @default("{}") @map("custom_fields")
+  condoName                String?               @map("condo_name")
+  condoAccountNumber       String?               @map("condo_account_number")
+  electricityAccountNumber String?               @map("electricity_account_number")
+  internetProvider         String?               @map("internet_provider")
+  internetAccountNumber    String?               @map("internet_account_number")
+  condoAdministration      String?               @map("condo_administration")
+  condoFeeAmount           Decimal?              @map("condo_fee_amount") @db.Decimal(10, 2)
+  condoContact             String?               @map("condo_contact")
+  electricityProvider      String?               @map("electricity_provider")
+  electricityMeterNumber   String?               @map("electricity_meter_number")
+  electricityTariff        String?               @map("electricity_tariff")
+  videoUrl                 String?               @map("video_url")
+  floorPlanUrl             String?               @map("floor_plan_url")
+  virtualTourUrl           String?               @map("virtual_tour_url")
+  captureCommission        Decimal?              @map("capture_commission") @db.Decimal(5, 2)
+  captureExclusive         Boolean               @default(false) @map("capture_exclusive")
+  captureContractUrl       String?               @map("capture_contract_url")
+  status                   PropertyStatus        @default(AVAILABLE)
   photos                   PropertyPhoto[]
   interests                PropertyInterest[]
   comments                 PropertyComment[]
@@ -403,9 +506,15 @@ model Property {
   documents                EntityDocument[]
   keys                     PropertyKey[]
   visits                   PropertyVisit[]
-  createdAt                DateTime           @default(now()) @map("created_at")
-  updatedAt                DateTime           @updatedAt @map("updated_at")
-  deletedAt                DateTime?          @map("deleted_at")
+  accountStatements        AccountStatement[]
+  assets                   Asset[]
+  maintenancePlans         MaintenancePlan[]
+  tasks                    Task[]
+  reservations             PropertyReservation[]
+  tags                     PropertyTag[]
+  createdAt                DateTime              @default(now()) @map("created_at")
+  updatedAt                DateTime              @updatedAt @map("updated_at")
+  deletedAt                DateTime?             @map("deleted_at")
 
   @@map("properties")
 }
@@ -544,6 +653,7 @@ model Lease {
   signatureEvents      ContractSignatureEvent[]
   guarantors           LeaseGuarantor[]
   signature            LeaseSignature?
+  tasks                Task[]
   createdAt            DateTime                 @default(now()) @map("created_at")
   updatedAt            DateTime                 @updatedAt @map("updated_at")
   deletedAt            DateTime?                @map("deleted_at")
@@ -676,6 +786,8 @@ model PropertyIssue {
   reportedByType   IssueReportedByType @default(CLIENT) @map("reported_by_type")
   reportedByUserId String?             @map("reported_by_user_id")
   reportedByUser   User?               @relation(fields: [reportedByUserId], references: [id], onDelete: SetNull)
+  providerId       String?             @map("provider_id")
+  provider         ServiceProvider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
   repairDate       DateTime?           @map("repair_date")
   repairDetails    String?             @map("repair_details")
   repairCost       Decimal             @default(0.00) @map("repair_cost") @db.Decimal(10, 2)
@@ -691,7 +803,12 @@ model LeaseProposalAndNotice {
   leaseId             String           @map("lease_id")
   lease               Lease            @relation(fields: [leaseId], references: [id], onDelete: Cascade)
   noticeType          NotificationType @map("notice_type")
+  recipientType       NoticeRecipient? @map("recipient_type")
+  status              ProposalStatus   @default(DRAFT)
+  title               String?
+  body                String?
   issueDate           DateTime         @default(now()) @map("issue_date")
+  sentAt              DateTime?        @map("sent_at")
   proposedCanonAmount Decimal?         @map("proposed_canon_amount") @db.Decimal(10, 2)
   proposedStartDate   DateTime?        @map("proposed_start_date")
   proposedEndDate     DateTime?        @map("proposed_end_date")
@@ -701,6 +818,26 @@ model LeaseProposalAndNotice {
   updatedAt           DateTime         @updatedAt @map("updated_at")
 
   @@map("lease_proposals_and_notices")
+}
+
+model AccountStatement {
+  id          String                   @id @default(uuid())
+  audience    AccountStatementAudience @default(OWNER)
+  propertyId  String?                  @map("property_id")
+  property    Property?                @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  clientId    String?                  @map("client_id")
+  client      ClientProfile?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  periodStart DateTime?                @map("period_start")
+  periodEnd   DateTime?                @map("period_end")
+  summary     Json                     @default("{}")
+  documentUrl String?                  @map("document_url")
+  createdById String?                  @map("created_by_id")
+  createdBy   User?                    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime                 @default(now()) @map("created_at")
+
+  @@index([propertyId, createdAt])
+  @@index([clientId, createdAt])
+  @@map("account_statements")
 }
 
 // ---------------------------------------------------------------------------
@@ -726,4 +863,170 @@ model EntityDocument {
   @@index([entityType, propertyId])
   @@index([entityType, leaseId])
   @@map("entity_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Property management: assets, providers, maintenance, tasks, reservations, tags
+// ---------------------------------------------------------------------------
+
+model Asset {
+  id               String            @id @default(uuid())
+  propertyId       String            @map("property_id")
+  property         Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  name             String
+  category         String?
+  brand            String?
+  model            String?
+  serialNumber     String?           @map("serial_number")
+  quantity         Int               @default(1)
+  condition        AssetCondition    @default(GOOD)
+  status           AssetStatus       @default(ACTIVE)
+  location         String?
+  purchaseDate     DateTime?         @map("purchase_date")
+  purchaseValue    Decimal?          @map("purchase_value") @db.Decimal(12, 2)
+  currency         CurrencyCode      @default(USD)
+  notes            String?
+  createdById      String?           @map("created_by_id")
+  createdBy        User?             @relation("AssetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
+  maintenancePlans MaintenancePlan[]
+  tasks            Task[]
+
+  @@index([propertyId, status])
+  @@map("assets")
+}
+
+model ServiceProvider {
+  id               String            @id @default(uuid())
+  companyName      String            @map("company_name")
+  contactName      String?           @map("contact_name")
+  type             ProviderType      @default(OTHER)
+  taxId            String?           @map("tax_id")
+  phone            String
+  email            String?
+  address          String?
+  specialty        String?
+  rating           Int?
+  notes            String?
+  isActive         Boolean           @default(true) @map("is_active")
+  createdById      String?           @map("created_by_id")
+  createdBy        User?             @relation("ProviderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  deletedAt        DateTime?         @map("deleted_at")
+  maintenancePlans MaintenancePlan[]
+  tasks            Task[]
+  issues           PropertyIssue[]
+
+  @@index([type, isActive])
+  @@map("service_providers")
+}
+
+model MaintenancePlan {
+  id              String              @id @default(uuid())
+  propertyId      String              @map("property_id")
+  property        Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  assetId         String?             @map("asset_id")
+  asset           Asset?              @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  providerId      String?             @map("provider_id")
+  provider        ServiceProvider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  title           String
+  description     String?
+  category        TaskCategory        @default(MAINTENANCE)
+  frequency       RecurrenceFrequency @default(MONTHLY)
+  intervalCount   Int                 @default(1) @map("interval_count")
+  nextDueDate     DateTime            @map("next_due_date")
+  lastCompletedAt DateTime?           @map("last_completed_at")
+  isActive        Boolean             @default(true) @map("is_active")
+  createdById     String?             @map("created_by_id")
+  createdBy       User?               @relation("PlanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  tasks           Task[]
+
+  @@index([nextDueDate, isActive])
+  @@index([propertyId])
+  @@map("maintenance_plans")
+}
+
+model Task {
+  id          String              @id @default(uuid())
+  title       String
+  description String?
+  category    TaskCategory        @default(OTHER)
+  status      TaskStatus          @default(PENDING)
+  priority    TaskPriority        @default(MEDIUM)
+  dueDate     DateTime            @map("due_date")
+  startAt     DateTime?           @map("start_at")
+  endAt       DateTime?           @map("end_at")
+  allDay      Boolean             @default(true) @map("all_day")
+  completedAt DateTime?           @map("completed_at")
+  recurrence  RecurrenceFrequency @default(ONCE)
+  planId      String?             @map("plan_id")
+  plan        MaintenancePlan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  propertyId  String?             @map("property_id")
+  property    Property?           @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  clientId    String?             @map("client_id")
+  client      ClientProfile?      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  leaseId     String?             @map("lease_id")
+  lease       Lease?              @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  providerId  String?             @map("provider_id")
+  provider    ServiceProvider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  assetId     String?             @map("asset_id")
+  asset       Asset?              @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  assigneeId  String?             @map("assignee_id")
+  assignee    User?               @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById String?             @map("created_by_id")
+  createdBy   User?               @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@index([dueDate, status])
+  @@index([propertyId, dueDate])
+  @@index([assigneeId, dueDate])
+  @@index([status, category])
+  @@map("tasks")
+}
+
+model PropertyReservation {
+  id          String            @id @default(uuid())
+  propertyId  String            @map("property_id")
+  property    Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  type        ReservationType   @default(VISIT)
+  status      ReservationStatus @default(PENDING)
+  startDate   DateTime          @map("start_date")
+  endDate     DateTime          @map("end_date")
+  clientId    String?           @map("client_id")
+  client      ClientProfile?    @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  notes       String?
+  createdById String?           @map("created_by_id")
+  createdBy   User?             @relation("ReservationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  @@index([propertyId, startDate])
+  @@index([status, startDate])
+  @@map("property_reservations")
+}
+
+model Tag {
+  id         String        @id @default(uuid())
+  name       String        @unique
+  color      String        @default("#64748b")
+  createdAt  DateTime      @default(now()) @map("created_at")
+  properties PropertyTag[]
+
+  @@map("tags")
+}
+
+model PropertyTag {
+  propertyId String   @map("property_id")
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tagId      String   @map("tag_id")
+  tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, tagId])
+  @@map("property_tags")
 }

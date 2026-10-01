@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 
 const transactionSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
-  leaseId: z.string().uuid().optional(),
+  leaseId: z.string().uuid().optional().nullable(),
   category: z.enum([
     "RENT_CANON",
     "RESERVATION",
@@ -17,7 +17,10 @@ const transactionSchema = z.object({
     "OTHER_SERVICE",
   ]),
   amount: z.number().positive("Monto debe ser positivo"),
+  currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).default("USD"),
+  status: z.enum(["PENDING", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]).default("PAID"),
   paymentDate: z.string().transform((s) => new Date(s)),
+  dueDate: z.string().transform((s) => new Date(s)).optional().nullable(),
   paymentMethod: z.string().min(1, "Método de pago es requerido"),
   referenceNumber: z.string().optional(),
   receiptUrl: z.string().optional(),
@@ -33,6 +36,8 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category") || "";
     const propertyId = searchParams.get("propertyId") || "";
     const leaseId = searchParams.get("leaseId") || "";
+    const status = searchParams.get("status") || "";
+    const currency = searchParams.get("currency") || "";
     const startDate = searchParams.get("startDate") || "";
     const endDate = searchParams.get("endDate") || "";
     const skip = (page - 1) * limit;
@@ -49,15 +54,17 @@ export async function GET(request: NextRequest) {
       ...(category && { category: category as Prisma.TransactionWhereInput["category"] }),
       ...(propertyId && { propertyId }),
       ...(leaseId && { leaseId }),
-      ...(startDate && endDate && {
+      ...(status && { status: status as Prisma.TransactionWhereInput["status"] }),
+      ...(currency && { currency: currency as Prisma.TransactionWhereInput["currency"] }),
+      ...((startDate || endDate) && {
         paymentDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
+          ...(startDate && { gte: new Date(startDate) }),
+          ...(endDate && { lte: new Date(endDate) }),
         },
       }),
     };
 
-    const [transactions, total, totalAmount] = await Promise.all([
+    const [transactions, total, totalsByCurrency] = await Promise.all([
       prisma.transaction.findMany({
         where,
         skip,
@@ -69,7 +76,8 @@ export async function GET(request: NextRequest) {
         },
       }),
       prisma.transaction.count({ where }),
-      prisma.transaction.aggregate({
+      prisma.transaction.groupBy({
+        by: ["currency"],
         where,
         _sum: { amount: true },
       }),
@@ -84,7 +92,10 @@ export async function GET(request: NextRequest) {
         totalPages: Math.ceil(total / limit),
       },
       summary: {
-        totalAmount: totalAmount._sum.amount || 0,
+        byCurrency: totalsByCurrency.map((row) => ({
+          currency: row.currency,
+          total: row._sum.amount || 0,
+        })),
       },
     });
   } catch (error) {

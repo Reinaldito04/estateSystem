@@ -120,3 +120,208 @@
     @apply bg-muted-foreground/30;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* FullCalendar theming                                                */
+/* ------------------------------------------------------------------ */
+.calendar-shell {
+  --fc-border-color: var(--border);
+  --fc-page-bg-color: var(--card);
+  --fc-neutral-bg-color: var(--muted);
+  --fc-neutral-text-color: var(--muted-foreground);
+  --fc-today-bg-color: color-mix(in oklab, var(--primary) 9%, transparent);
+  --fc-highlight-color: color-mix(in oklab, var(--primary) 14%, transparent);
+  --fc-now-indicator-color: var(--destructive);
+  --fc-button-bg-color: var(--primary);
+  --fc-button-border-color: var(--primary);
+  --fc-button-text-color: var(--primary-foreground);
+  --fc-button-hover-bg-color: color-mix(in oklab, var(--primary) 88%, black);
+  --fc-button-hover-border-color: color-mix(in oklab, var(--primary) 88%, black);
+  --fc-button-active-bg-color: color-mix(in oklab, var(--primary) 78%, black);
+  --fc-button-active-border-color: color-mix(in oklab, var(--primary) 78%, black);
+  --fc-event-border-color: transparent;
+  color: var(--foreground);
+  font-size: 0.875rem;
+}
+
+.calendar-shell .fc {
+  --fc-small-font-size: 0.8125rem;
+}
+
+.calendar-shell .fc .fc-toolbar {
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.calendar-shell .fc .fc-toolbar-title {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: capitalize;
+}
+
+.calendar-shell .fc .fc-button {
+  border-radius: var(--radius-md);
+  padding: 0.4rem 0.7rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  box-shadow: none;
+  text-transform: capitalize;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.calendar-shell .fc .fc-button:focus,
+.calendar-shell .fc .fc-button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 45%, transparent);
+  outline: none;
+}
+
+.calendar-shell .fc .fc-button-group > .fc-button {
+  border-radius: 0;
+}
+
+.calendar-shell .fc .fc-button-group > .fc-button:first-child {
+  border-top-left-radius: var(--radius-md);
+  border-bottom-left-radius: var(--radius-md);
+}
+
+.calendar-shell .fc .fc-button-group > .fc-button:last-child {
+  border-top-right-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+.calendar-shell .fc .fc-today-button {
+  background-color: var(--secondary);
+  border-color: var(--border);
+  color: var(--secondary-foreground);
+}
+
+.calendar-shell .fc .fc-today-button:hover {
+  background-color: var(--accent);
+  border-color: var(--border);
+  color: var(--accent-foreground);
+}
+
+.calendar-shell .fc .fc-col-header-cell {
+  background: var(--muted);
+  padding: 0.45rem 0;
+}
+
+.calendar-shell .fc .fc-col-header-cell-cushion {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.calendar-shell .fc .fc-daygrid-day-number {
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.45rem;
+  text-decoration: none;
+}
+
+.calendar-shell .fc .fc-day-other .fc-daygrid-day-number {
+  color: var(--muted-foreground);
+  opacity: 0.55;
+}
+
+.calendar-shell .fc .fc-daygrid-day.fc-day-today {
+  background: var(--fc-today-bg-color);
+}
+
+.calendar-shell .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.calendar-shell .fc .fc-daygrid-day-frame {
+  min-height: 6.5rem;
+}
+
+.calendar-shell .fc .fc-daygrid-body tbody tr:hover .fc-daygrid-day-frame {
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+}
+
+.calendar-shell .fc .fc-daygrid-event {
+  border: none;
+  border-radius: calc(var(--radius) - 3px);
+  padding: 1px 5px;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: 0 1px 1px oklch(0 0 0 / 0.05);
+}
+
+.calendar-shell .fc .fc-event {
+  cursor: pointer;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.calendar-shell .fc .fc-event:hover {
+  filter: brightness(1.05);
+}
+
+.calendar-shell .fc .fc-daygrid-event-dot {
+  display: none;
+}
+
+.calendar-shell .fc .fc-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-shell .fc .fc-timegrid-slot {
+  height: 2.75rem;
+}
+
+.calendar-shell .fc .fc-timegrid-axis-cushion,
+.calendar-shell .fc .fc-timegrid-slot-label-cushion {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+}
+
+.calendar-shell .fc .fc-timegrid-col.fc-day-today {
+  background: var(--fc-today-bg-color);
+}
+
+.calendar-shell .fc .fc-more-link {
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 0.72rem;
+}
+
+.calendar-shell .fc .fc-popover {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  overflow: hidden;
+}
+
+.calendar-shell .fc .fc-popover-header {
+  background: var(--muted);
+  border-color: var(--border);
+  padding: 0.45rem 0.65rem;
+  font-weight: 600;
+}
+
+.calendar-shell .fc .fc-scrollgrid {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border-color: var(--border);
+}
+
+.calendar-shell .fc .fc-scrollgrid-section > td {
+  border-color: var(--border);
+}
+
+.calendar-shell .fc .fc-non-business {
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+}
+
+.calendar-shell .fc .fc-daygrid-more-link {
+  font-size: 0.72rem;
+}

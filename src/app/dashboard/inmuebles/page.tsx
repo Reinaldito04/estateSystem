@@ -74,6 +74,7 @@ interface Property {
   status: string;
   owner: { id: string; fullName: string; phone: string };
   photos: { id: string; photoUrl: string; description: string | null }[];
+  tags?: { id: string; name: string; color: string }[];
   createdAt: string;
   _count: { leases: number; transactions: number; issues: number };
 }
@@ -133,6 +134,11 @@ export default function PropertiesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [ownerFilter, setOwnerFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [minCanon, setMinCanon] = useState("");
+  const [maxCanon, setMaxCanon] = useState("");
+  const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLocationMapOpen, setIsLocationMapOpen] = useState(false);
@@ -158,7 +164,13 @@ export default function PropertiesPage() {
     amenities: "",
     condoName: "",
     condoAccountNumber: "",
+    condoAdministration: "",
+    condoFeeAmount: "",
+    condoContact: "",
     electricityAccountNumber: "",
+    electricityProvider: "",
+    electricityMeterNumber: "",
+    electricityTariff: "",
     internetProvider: "",
     internetAccountNumber: "",
     captureCommission: "",
@@ -183,6 +195,10 @@ export default function PropertiesPage() {
         ...(search && { search }),
         ...(statusFilter && { status: statusFilter }),
         ...(ownerFilter && { ownerId: ownerFilter }),
+        ...(tagFilter && { tagId: tagFilter }),
+        ...(typeFilter && { propertyType: typeFilter }),
+        ...(minCanon && { minCanon }),
+        ...(maxCanon && { maxCanon }),
       });
       const response = await fetch(`/api/properties?${params}`);
       if (response.ok) {
@@ -213,10 +229,14 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     fetchProperties();
-  }, [pagination.page, search, statusFilter, ownerFilter]);
+  }, [pagination.page, search, statusFilter, ownerFilter, tagFilter, typeFilter, minCanon, maxCanon]);
 
   useEffect(() => {
     fetchOwners();
+    fetch("/api/tags")
+      .then((response) => (response.ok ? response.json() : { data: [] }))
+      .then((result) => setTags(result.data ?? []))
+      .catch(() => setTags([]));
   }, []);
 
   useEffect(() => {
@@ -277,6 +297,7 @@ export default function PropertiesPage() {
           parkingSpaces: formData.parkingSpaces ? parseInt(formData.parkingSpaces, 10) : null,
           amenities: formData.amenities.split(",").map((amenity) => amenity.trim()).filter(Boolean),
           captureCommission: formData.captureCommission ? parseFloat(formData.captureCommission) : null,
+          condoFeeAmount: formData.condoFeeAmount ? parseFloat(formData.condoFeeAmount) : null,
           customFields: Object.fromEntries(
             customFieldDrafts
               .filter((field) => field.name.trim())
@@ -325,7 +346,13 @@ export default function PropertiesPage() {
       amenities: (property.amenities || []).join(", "),
       condoName: (p.condoName as string) || "",
       condoAccountNumber: (p.condoAccountNumber as string) || "",
+      condoAdministration: (p.condoAdministration as string) || "",
+      condoFeeAmount: p.condoFeeAmount ? String(p.condoFeeAmount) : "",
+      condoContact: (p.condoContact as string) || "",
       electricityAccountNumber: (p.electricityAccountNumber as string) || "",
+      electricityProvider: (p.electricityProvider as string) || "",
+      electricityMeterNumber: (p.electricityMeterNumber as string) || "",
+      electricityTariff: (p.electricityTariff as string) || "",
       internetProvider: (p.internetProvider as string) || "",
       internetAccountNumber: (p.internetAccountNumber as string) || "",
       captureCommission: property.captureCommission?.toString() || "",
@@ -379,7 +406,13 @@ export default function PropertiesPage() {
       amenities: "",
       condoName: "",
       condoAccountNumber: "",
+      condoAdministration: "",
+      condoFeeAmount: "",
+      condoContact: "",
       electricityAccountNumber: "",
+      electricityProvider: "",
+      electricityMeterNumber: "",
+      electricityTariff: "",
       internetProvider: "",
       internetAccountNumber: "",
       captureCommission: "",
@@ -584,12 +617,68 @@ export default function PropertiesPage() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="condoAdministration">Administradora</Label>
+                    <Input
+                      id="condoAdministration"
+                      value={formData.condoAdministration}
+                      onChange={(e) => setFormData({ ...formData, condoAdministration: e.target.value })}
+                      placeholder="Administradora del condominio"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="condoFeeAmount">Cuota de Condominio</Label>
+                    <Input
+                      id="condoFeeAmount"
+                      type="number"
+                      step="0.01"
+                      value={formData.condoFeeAmount}
+                      onChange={(e) => setFormData({ ...formData, condoFeeAmount: e.target.value })}
+                      placeholder="120.00"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="condoContact">Contacto del Condominio</Label>
+                    <Input
+                      id="condoContact"
+                      value={formData.condoContact}
+                      onChange={(e) => setFormData({ ...formData, condoContact: e.target.value })}
+                      placeholder="Teléfono o correo de administración"
+                    />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="electricityAccountNumber">Número de Cuenta Electricidad (NIC/NIS)</Label>
                     <Input
                       id="electricityAccountNumber"
                       value={formData.electricityAccountNumber}
                       onChange={(e) => setFormData({ ...formData, electricityAccountNumber: e.target.value })}
                       placeholder="NIC: 123456"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="electricityProvider">Empresa Eléctrica</Label>
+                    <Input
+                      id="electricityProvider"
+                      value={formData.electricityProvider}
+                      onChange={(e) => setFormData({ ...formData, electricityProvider: e.target.value })}
+                      placeholder="Empresa prestadora del servicio"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="electricityMeterNumber">Número de Medidor</Label>
+                    <Input
+                      id="electricityMeterNumber"
+                      value={formData.electricityMeterNumber}
+                      onChange={(e) => setFormData({ ...formData, electricityMeterNumber: e.target.value })}
+                      placeholder="Medidor"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="electricityTariff">Tarifa Eléctrica</Label>
+                    <Input
+                      id="electricityTariff"
+                      value={formData.electricityTariff}
+                      onChange={(e) => setFormData({ ...formData, electricityTariff: e.target.value })}
+                      placeholder="Tarifa o plan"
                     />
                   </div>
                   <div className="space-y-2">
@@ -723,6 +812,32 @@ export default function PropertiesPage() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={tagFilter || "all"} onValueChange={(value) => setTagFilter(value === "all" ? "" : value)}>
+              <SelectTrigger className="sm:w-40">
+                <SelectValue placeholder="Etiquetas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las etiquetas</SelectItem>
+                {tags.map((tag) => (
+                  <SelectItem key={tag.id} value={tag.id}>{tag.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? "" : value)}>
+              <SelectTrigger className="sm:w-40">
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los tipos</SelectItem>
+                {PROPERTY_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Input type="number" min="0" placeholder="Canon mín." value={minCanon} onChange={(e) => setMinCanon(e.target.value)} className="w-28" aria-label="Canon mínimo" />
+              <Input type="number" min="0" placeholder="Canon máx." value={maxCanon} onChange={(e) => setMaxCanon(e.target.value)} className="w-28" aria-label="Canon máximo" />
+            </div>
             <div className="flex h-10 w-fit overflow-hidden rounded-md border bg-background" role="group" aria-label="Modo de visualización del inventario">
               <Button type="button" variant="ghost" size="sm" aria-pressed={viewMode === "cards"} aria-label="Ver en tarjetas" title="Ver en tarjetas" className={`h-full rounded-none px-3 ${viewMode === "cards" ? "bg-accent text-accent-foreground" : ""}`} onClick={() => setViewMode("cards")}>
                 <Grid2X2 className="h-4 w-4 sm:mr-2" /><span className="sr-only sm:not-sr-only">Tarjetas</span>
@@ -771,6 +886,15 @@ export default function PropertiesPage() {
                         <div className="min-w-0">
                           <Link href={`/dashboard/inmuebles/${property.id}`} className="line-clamp-2 text-lg font-semibold leading-snug hover:text-primary">{property.title}</Link>
                           <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground"><MapPin className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{property.city}</span></p>
+                          {property.tags && property.tags.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {property.tags.map((tag) => (
+                                <span key={tag.id} className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: `${tag.color}20`, color: tag.color }}>
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <div className="flex shrink-0 items-center gap-0.5">
                           <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(property)} aria-label={`Editar ${property.title}`} title="Editar"><Edit className="h-4 w-4" /></Button>

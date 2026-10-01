@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
+import { recordAudit } from "@/lib/audit";
 
 const propertySchema = z.object({
   code: z.string().min(1, "Código es requerido"),
@@ -24,6 +25,12 @@ const propertySchema = z.object({
   electricityAccountNumber: z.string().optional(),
   internetProvider: z.string().optional(),
   internetAccountNumber: z.string().optional(),
+  condoAdministration: z.string().optional(),
+  condoFeeAmount: z.number().min(0).nullable().optional(),
+  condoContact: z.string().optional(),
+  electricityProvider: z.string().optional(),
+  electricityMeterNumber: z.string().optional(),
+  electricityTariff: z.string().optional(),
   videoUrl: z.string().optional(),
   floorPlanUrl: z.string().optional(),
   virtualTourUrl: z.string().optional(),
@@ -31,6 +38,7 @@ const propertySchema = z.object({
   captureExclusive: z.boolean().default(false),
   captureContractUrl: z.string().optional(),
   status: z.string().default("available"),
+  tagIds: z.array(z.string().uuid()).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -41,9 +49,15 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
     const ownerId = searchParams.get("ownerId") || "";
+    const tagId = searchParams.get("tagId") || "";
+    const propertyType = searchParams.get("propertyType") || "";
+    const city = searchParams.get("city") || "";
+    const minCanon = searchParams.get("minCanon") || "";
+    const maxCanon = searchParams.get("maxCanon") || "";
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {
+      deletedAt: null,
       ...(search && {
         OR: [
           { code: { contains: search, mode: "insensitive" as const } },
@@ -54,6 +68,20 @@ export async function GET(request: NextRequest) {
       }),
       ...(status && { status: toPropertyStatus(status) }),
       ...(ownerId && { ownerId }),
+      ...(tagId && { tags: { some: { tagId } } }),
+      ...(propertyType && { propertyType: toPropertyType(propertyType) }),
+      ...(city && { city: { equals: city, mode: "insensitive" as const } }),
+      ...((minCanon || maxCanon) && {
+        leases: {
+          some: {
+            isActive: true,
+            monthlyCanonAmount: {
+              ...(minCanon && { gte: Number(minCanon) }),
+              ...(maxCanon && { lte: Number(maxCanon) }),
+            },
+          },
+        },
+      }),
     };
 
     const [properties, total] = await Promise.all([
@@ -65,6 +93,7 @@ export async function GET(request: NextRequest) {
         include: {
           owner: { select: { id: true, fullName: true, phone: true } },
           photos: { orderBy: { uploadedAt: "asc" } },
+          tags: { include: { tag: true } },
           _count: { select: { leases: true, transactions: true, issues: true } },
         },
       }),
@@ -72,7 +101,11 @@ export async function GET(request: NextRequest) {
     ]);
 
     return NextResponse.json({
-      data: properties.map((property) => ({ ...property, status: propertyStatusToUi(property.status) })),
+      data: properties.map((property) => ({
+        ...property,
+        status: propertyStatusToUi(property.status),
+        tags: property.tags.map((propertyTag) => propertyTag.tag),
+      })),
       pagination: {
         page,
         limit,
@@ -89,7 +122,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validatedData = propertySchema.parse(body);
+    const { tagIds, ...validatedData } = propertySchema.parse(body);
 
     const existingProperty = await prisma.property.findUnique({
       where: { code: validatedData.code },
@@ -107,15 +140,20 @@ export async function POST(request: NextRequest) {
         ...validatedData,
         propertyType: toPropertyType(validatedData.propertyType),
         status: toPropertyStatus(validatedData.status),
+        tags: tagIds?.length
+          ? { create: tagIds.map((tagId) => ({ tagId })) }
+          : undefined,
       },
       include: {
         owner: { select: { id: true, fullName: true, phone: true } },
         photos: true,
+        tags: { include: { tag: true } },
         _count: { select: { leases: true, transactions: true, issues: true } },
       },
     });
 
-    return NextResponse.json({ ...property, status: propertyStatusToUi(property.status) }, { status: 201 });
+    await recordAudit({ entityType: "Property", entityId: property.id, action: "CREATE", changes: { code: property.code, title: property.title }, request });
+    return NextResponse.json({ ...property, status: propertyStatusToUi(property.status), tags: property.tags.map((propertyTag) => propertyTag.tag) }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

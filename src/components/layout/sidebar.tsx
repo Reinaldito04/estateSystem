@@ -16,6 +16,8 @@ import {
   Building,
   AlertTriangle,
   Bell,
+  CalendarDays,
+  HardHat,
   ChevronDown,
   Sparkles,
 } from "lucide-react";
@@ -47,9 +49,11 @@ const financialNavigation = [
 ];
 
 const operationalNavigation = [
-  { name: "Averías", href: "/dashboard/averias", icon: Wrench, badge: 3 },
+  { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays },
+  { name: "Averías", href: "/dashboard/averias", icon: Wrench },
+  { name: "Proveedores", href: "/dashboard/proveedores", icon: HardHat },
   { name: "Documentos", href: "/dashboard/documentos", icon: FolderOpen },
-  { name: "Notificaciones", href: "/dashboard/notificaciones", icon: Bell, badge: 5 },
+  { name: "Notificaciones", href: "/dashboard/notificaciones", icon: Bell },
 ];
 
 type NavItem = {

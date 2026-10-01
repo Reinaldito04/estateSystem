@@ -59,23 +59,49 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const [owner, setOwner] = useState<Owner | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentName, setDocumentName] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+
+  const loadOwner = async () => {
+    try {
+      const response = await fetch(`/api/owners/${id}`);
+      if (response.ok) {
+        setOwner(await response.json());
+      }
+    } catch (error) {
+      console.error("Error fetching owner:", error);
+    }
+  };
 
   useEffect(() => {
     const fetchOwner = async () => {
-      try {
-        const response = await fetch(`/api/owners/${id}`);
-        if (response.ok) {
-          const data = await response.json();
-          setOwner(data);
-        }
-      } catch (error) {
-        console.error("Error fetching owner:", error);
-      } finally {
-        setIsLoading(false);
-      }
+      await loadOwner();
+      setIsLoading(false);
     };
     fetchOwner();
   }, [id]);
+
+  const handleUploadDocument = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!documentFile) return;
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("kind", "document");
+      formData.append("documentName", documentName || documentFile.name);
+      formData.append("file", documentFile);
+      const response = await fetch(`/api/clients/${owner?.id}/media`, { method: "POST", body: formData });
+      if (!response.ok) throw new Error("No se pudo subir el documento");
+      setDocumentFile(null);
+      setDocumentName("");
+      await loadOwner();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Error al subir el documento");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -216,6 +242,23 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
             <CardTitle>Documentos</CardTitle>
           </CardHeader>
           <CardContent>
+            <form onSubmit={handleUploadDocument} className="mb-4 space-y-2 rounded-lg border p-3">
+              <input
+                value={documentName}
+                onChange={(event) => setDocumentName(event.target.value)}
+                placeholder="Nombre del documento (opcional)"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <input
+                type="file"
+                onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)}
+                className="block w-full text-sm"
+                required
+              />
+              <Button type="submit" size="sm" disabled={isUploading}>
+                {isUploading ? "Subiendo..." : "Subir documento"}
+              </Button>
+            </form>
             {owner.documents.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No hay documentos</p>
             ) : (
@@ -265,8 +308,8 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
                       <TableCell>{property.title}</TableCell>
                       <TableCell>{property.city}</TableCell>
                       <TableCell>
-                        <Badge variant={property.status === "available" ? "success" : "secondary"}>
-                          {property.status === "available" ? "Disponible" : property.status === "occupied" ? "Ocupado" : property.status}
+                        <Badge variant={property.status === "AVAILABLE" ? "success" : "secondary"}>
+                          {property.status === "AVAILABLE" ? "Disponible" : property.status === "RENTED" ? "Alquilado" : property.status === "RESERVED" ? "Reservado" : property.status === "MAINTENANCE" ? "Mantenimiento" : property.status}
                         </Badge>
                       </TableCell>
                       <TableCell>{property._count.leases}</TableCell>

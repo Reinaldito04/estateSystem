@@ -38,14 +38,24 @@ import {
   DollarSign,
   TrendingUp,
 } from "lucide-react";
-import { formatCurrency, formatDate, PAYMENT_CATEGORIES, PAYMENT_METHODS } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDate,
+  PAYMENT_CATEGORIES,
+  PAYMENT_METHODS,
+  CURRENCIES,
+  PAYMENT_STATUSES,
+} from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 interface Transaction {
   id: string;
   category: string;
   amount: string;
+  currency: string;
+  status: string;
   paymentDate: string;
+  dueDate: string | null;
   paymentMethod: string;
   referenceNumber: string | null;
   receiptUrl: string | null;
@@ -83,9 +93,10 @@ export default function TransactionsPage() {
     total: 0,
     totalPages: 0,
   });
-  const [totalAmount, setTotalAmount] = useState(0);
+  const [totalsByCurrency, setTotalsByCurrency] = useState<{ currency: string; total: number }[]>([]);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [propertyFilter, setPropertyFilter] = useState("");
   const [leaseFilter, setLeaseFilter] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -96,7 +107,10 @@ export default function TransactionsPage() {
     leaseId: "",
     category: "",
     amount: "",
+    currency: "USD",
+    status: "PAID",
     paymentDate: "",
+    dueDate: "",
     paymentMethod: "",
     referenceNumber: "",
     receiptUrl: "",
@@ -113,6 +127,7 @@ export default function TransactionsPage() {
         limit: pagination.limit.toString(),
         ...(search && { search }),
         ...(categoryFilter && { category: categoryFilter }),
+        ...(statusFilter && { status: statusFilter }),
         ...((propertyFilter || new URLSearchParams(window.location.search).get("propertyId")) && {
           propertyId: propertyFilter || new URLSearchParams(window.location.search).get("propertyId") || "",
         }),
@@ -125,7 +140,7 @@ export default function TransactionsPage() {
         const data = await response.json();
         setTransactions(data.data);
         setPagination(data.pagination);
-        setTotalAmount(data.summary.totalAmount);
+        setTotalsByCurrency(data.summary?.byCurrency ?? []);
       } else {
         toast({ title: "Error", description: "Error al cargar transacciones", variant: "destructive" });
       }
@@ -162,7 +177,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     fetchTransactions();
-  }, [pagination.page, search, categoryFilter, propertyFilter, leaseFilter]);
+  }, [pagination.page, search, categoryFilter, statusFilter, propertyFilter, leaseFilter]);
 
   useEffect(() => {
     fetchProperties();
@@ -182,6 +197,7 @@ export default function TransactionsPage() {
           ...formData,
           amount: parseFloat(formData.amount),
           leaseId: formData.leaseId || null,
+          dueDate: formData.dueDate || null,
         }),
       });
       if (response.ok) {
@@ -210,7 +226,10 @@ export default function TransactionsPage() {
       leaseId: transaction.lease?.id || "",
       category: transaction.category,
       amount: transaction.amount,
+      currency: transaction.currency || "USD",
+      status: transaction.status || "PAID",
       paymentDate: transaction.paymentDate.split("T")[0],
+      dueDate: transaction.dueDate ? transaction.dueDate.split("T")[0] : "",
       paymentMethod: transaction.paymentMethod,
       referenceNumber: transaction.referenceNumber || "",
       receiptUrl: transaction.receiptUrl || "",
@@ -242,7 +261,10 @@ export default function TransactionsPage() {
       leaseId: "",
       category: "",
       amount: "",
+      currency: "USD",
+      status: "PAID",
       paymentDate: "",
+      dueDate: "",
       paymentMethod: "",
       referenceNumber: "",
       receiptUrl: "",
@@ -286,6 +308,14 @@ export default function TransactionsPage() {
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${colors[category] || "bg-gray-100 text-gray-800"}`}>
         {getCategoryLabel(category)}
       </span>
+    );
+  };
+
+  const getStatusBadge = (status: string) => {
+    const option = PAYMENT_STATUSES.find((item) => item.value === status);
+    if (!option) return <span className="text-muted-foreground">{status}</span>;
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${option.color}`}>{option.label}</span>
     );
   };
 
@@ -358,6 +388,41 @@ export default function TransactionsPage() {
                     onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                     required
                     placeholder="850"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="currency">Moneda</Label>
+                  <Select value={formData.currency} onValueChange={(v) => setFormData({ ...formData, currency: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Moneda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCIES.map((c) => (
+                        <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="status">Estado del Pago</Label>
+                  <Select value={formData.status} onValueChange={(v) => setFormData({ ...formData, status: v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dueDate">Fecha de Vencimiento</Label>
+                  <Input
+                    id="dueDate"
+                    type="date"
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
@@ -444,7 +509,17 @@ export default function TransactionsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Monto Total</p>
-                <p className="text-3xl font-bold mt-1">{formatCurrency(totalAmount)}</p>
+                {totalsByCurrency.length === 0 ? (
+                  <p className="text-3xl font-bold mt-1">{formatCurrency(0)}</p>
+                ) : (
+                  <div className="mt-1 space-y-0.5">
+                    {totalsByCurrency.map((row) => (
+                      <p key={row.currency} className="text-xl font-bold tabular-nums">
+                        {formatCurrency(row.total, row.currency)}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="p-3 rounded-full bg-green-100 text-green-600">
                 <TrendingUp className="h-6 w-6" />
@@ -489,6 +564,17 @@ export default function TransactionsPage() {
                   <SelectItem value="all">Todas</SelectItem>
                   {PAYMENT_CATEGORIES.map((c) => (
                     <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value === "all" ? "" : value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {PAYMENT_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -541,7 +627,9 @@ export default function TransactionsPage() {
                       <TableHead>Inmueble</TableHead>
                       <TableHead>Contrato</TableHead>
                       <TableHead>Categoría</TableHead>
+                      <TableHead>Estado</TableHead>
                       <TableHead>Método</TableHead>
+                      <TableHead>Vence</TableHead>
                       <TableHead>Referencia</TableHead>
                       <TableHead>Detalle</TableHead>
                       <TableHead>Comprobante</TableHead>
@@ -565,7 +653,9 @@ export default function TransactionsPage() {
                           ) : <span className="text-muted-foreground">Sin contrato</span>}
                         </TableCell>
                         <TableCell>{getCategoryBadge(transaction.category)}</TableCell>
+                        <TableCell>{getStatusBadge(transaction.status)}</TableCell>
                         <TableCell>{transaction.paymentMethod}</TableCell>
+                        <TableCell>{transaction.dueDate ? formatDate(transaction.dueDate) : "-"}</TableCell>
                         <TableCell>{transaction.referenceNumber || "-"}</TableCell>
                         <TableCell className="max-w-52 truncate" title={transaction.description || undefined}>{transaction.description || "-"}</TableCell>
                         <TableCell>
@@ -573,7 +663,7 @@ export default function TransactionsPage() {
                             <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver</a>
                           ) : <span className="text-muted-foreground">-</span>}
                         </TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(transaction.amount)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatCurrency(transaction.amount, transaction.currency)}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} aria-label="Editar">

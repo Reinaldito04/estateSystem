@@ -7,6 +7,14 @@ const prisma = new PrismaClient({
 });
 
 async function main() {
+  await prisma.task.deleteMany();
+  await prisma.maintenancePlan.deleteMany();
+  await prisma.asset.deleteMany();
+  await prisma.propertyReservation.deleteMany();
+  await prisma.propertyTag.deleteMany();
+  await prisma.tag.deleteMany();
+  await prisma.serviceProvider.deleteMany();
+  await prisma.accountStatement.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.transaction.deleteMany();
   await prisma.leaseSignature.deleteMany();
@@ -102,12 +110,113 @@ async function main() {
   await prisma.auditLog.create({
     data: { userId: admin.id, entityType: "Lease", entityId: lease.id, action: "CREATE", changes: {} },
   });
+  await prisma.auditLog.create({
+    data: { userId: admin.id, entityType: "Property", entityId: property.id, action: "CREATE", changes: { code: property.code } },
+  });
+
+  const provider = await prisma.serviceProvider.create({
+    data: {
+      companyName: "Servicios Técnicos Integrales",
+      contactName: "Carlos Méndez",
+      type: "MAINTENANCE",
+      phone: "555-0100",
+      email: "contacto@sti.example.com",
+      specialty: "Plomería y electricidad",
+      rating: 4,
+      createdById: admin.id,
+    },
+  });
+
+  const asset = await prisma.asset.create({
+    data: {
+      propertyId: property.id,
+      name: "Aire acondicionado split",
+      category: "Electrodoméstico",
+      brand: "Samsung",
+      model: "AR12",
+      serialNumber: "SN-123456",
+      quantity: 2,
+      condition: "GOOD",
+      status: "ACTIVE",
+      location: "Sala y habitación principal",
+      purchaseValue: new Prisma.Decimal(650),
+      currency: "USD",
+      createdById: admin.id,
+    },
+  });
+
+  const tag = await prisma.tag.upsert({
+    where: { name: "Premium" },
+    update: {},
+    create: { name: "Premium", color: "#2563eb" },
+  });
+  await prisma.propertyTag.create({ data: { propertyId: property.id, tagId: tag.id } });
+
+  const plan = await prisma.maintenancePlan.create({
+    data: {
+      propertyId: property.id,
+      assetId: asset.id,
+      providerId: provider.id,
+      title: "Mantenimiento trimestral de aire acondicionado",
+      description: "Limpieza de filtros y revisión general",
+      category: "MAINTENANCE",
+      frequency: "QUARTERLY",
+      intervalCount: 3,
+      nextDueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.task.create({
+    data: {
+      title: plan.title,
+      description: plan.description,
+      category: "MAINTENANCE",
+      dueDate: plan.nextDueDate,
+      recurrence: "QUARTERLY",
+      planId: plan.id,
+      propertyId: property.id,
+      assetId: asset.id,
+      providerId: provider.id,
+      assigneeId: admin.id,
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.task.create({
+    data: {
+      title: "Revisar contrato de arrendamiento",
+      category: "REVIEW",
+      priority: "HIGH",
+      dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+      leaseId: lease.id,
+      propertyId: property.id,
+      clientId: tenant.id,
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.propertyReservation.create({
+    data: {
+      propertyId: property.id,
+      type: "LEASE_HOLD",
+      status: "CONFIRMED",
+      startDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+      endDate: new Date(Date.now() + 27 * 24 * 60 * 60 * 1000),
+      clientId: tenant.id,
+      notes: "Apartado de fechas de ejemplo",
+      createdById: admin.id,
+    },
+  });
 
   console.log("Seed OK:", {
     admin: admin.email,
     owner: owner.legalDocumentId,
     tenant: tenant.legalDocumentId,
     lease: lease.contractNumber,
+    asset: asset.name,
+    provider: provider.companyName,
+    tag: tag.name,
   });
 }
 

@@ -3,6 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const noticeUpdateSchema = z.object({
+  status: z.enum(["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"]).optional(),
+  recipientType: z.enum(["OWNER", "TENANT"]).optional(),
+  title: z.string().optional(),
+  body: z.string().optional(),
   proposedCanonAmount: z.number().positive().optional(),
   proposedStartDate: z.string().transform((s) => new Date(s)).optional(),
   proposedEndDate: z.string().transform((s) => new Date(s)).optional(),
@@ -21,7 +25,10 @@ export async function PUT(
 
     const notice = await prisma.leaseProposalAndNotice.update({
       where: { id },
-      data: validatedData,
+      data: {
+        ...validatedData,
+        ...(validatedData.status === "SENT" && { sentAt: new Date() }),
+      },
     });
 
     return NextResponse.json(notice);

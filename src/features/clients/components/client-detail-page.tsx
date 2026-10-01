@@ -29,11 +29,17 @@ const emptyCommunicationForm = {
 };
 
 const emptyDocumentForm = {
-  documentType: "",
+  documentType: "INCOME_PROOF",
   title: "",
-  fileUrl: "",
   notes: "",
 };
+
+const RISK_DOCUMENT_TYPES = [
+  { value: "INCOME_PROOF", label: "Comprobante de ingresos" },
+  { value: "PERSONAL_REFERENCE", label: "Referencia personal" },
+  { value: "LABOR_REFERENCE", label: "Referencia laboral" },
+  { value: "CREDIT_REPORT", label: "Reporte de crédito" },
+] as const;
 
 type ClientDetail = ClientProfile & {
   references: Array<{
@@ -62,6 +68,12 @@ type ClientDetail = ClientProfile & {
     title: string;
     fileUrl: string | null;
     notes: string | null;
+    uploadedAt: string;
+  }>;
+  documents: Array<{
+    id: string;
+    documentName: string;
+    fileUrl: string;
     uploadedAt: string;
   }>;
   tenantOperations: {
@@ -122,6 +134,9 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
   const [referenceForm, setReferenceForm] = useState(emptyReferenceForm);
   const [communicationForm, setCommunicationForm] = useState(emptyCommunicationForm);
   const [documentForm, setDocumentForm] = useState(emptyDocumentForm);
+  const [riskFile, setRiskFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentName, setDocumentName] = useState("");
 
   const refreshClient = async () => {
     const response = await fetch(`/api/clients/${clientId}`);
@@ -172,21 +187,61 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
 
   const handleAddDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!riskFile) {
+      alert("Seleccione el archivo del documento de riesgo");
+      return;
+    }
 
     try {
-      const response = await fetch(`/api/clients/${clientId}/documents`, {
+      const formData = new FormData();
+      formData.append("kind", "risk");
+      formData.append("documentType", documentForm.documentType);
+      formData.append("title", documentForm.title);
+      formData.append("notes", documentForm.notes);
+      formData.append("file", riskFile);
+
+      const response = await fetch(`/api/clients/${clientId}/media`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(documentForm),
+        body: formData,
       });
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "No se pudo guardar el documento");
 
       setDocumentForm(emptyDocumentForm);
+      setRiskFile(null);
       await refreshClient();
     } catch (error) {
       alert(error instanceof Error ? error.message : "Error al guardar el documento");
+    }
+  };
+
+  const handleUploadDocument = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!documentFile) {
+      alert("Seleccione un archivo");
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("kind", "document");
+      formData.append("documentName", documentName || documentFile.name);
+      formData.append("file", documentFile);
+
+      const response = await fetch(`/api/clients/${clientId}/media`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "No se pudo subir el documento");
+
+      setDocumentFile(null);
+      setDocumentName("");
+      await refreshClient();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Error al subir el documento");
     }
   };
 
@@ -508,9 +563,20 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <form onSubmit={handleAddDocument} className="space-y-3 rounded-lg border p-3">
-              <Input value={documentForm.documentType} onChange={(event) => setDocumentForm({ ...documentForm, documentType: event.target.value })} placeholder="Tipo de documento" required />
+              <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tipo</label>
+                <select
+                  value={documentForm.documentType}
+                  onChange={(event) => setDocumentForm({ ...documentForm, documentType: event.target.value })}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  {RISK_DOCUMENT_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>{type.label}</option>
+                  ))}
+                </select>
+              </div>
               <Input value={documentForm.title} onChange={(event) => setDocumentForm({ ...documentForm, title: event.target.value })} placeholder="Título" required />
-              <Input value={documentForm.fileUrl} onChange={(event) => setDocumentForm({ ...documentForm, fileUrl: event.target.value })} placeholder="URL del archivo" type="url" required />
+              <Input type="file" onChange={(event) => setRiskFile(event.target.files?.[0] ?? null)} required />
               <textarea
                 value={documentForm.notes}
                 onChange={(event) => setDocumentForm({ ...documentForm, notes: event.target.value })}
@@ -538,6 +604,60 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4" /> Documentos personales</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm">
+            <form onSubmit={handleUploadDocument} className="space-y-3 rounded-lg border p-3">
+              <Input value={documentName} onChange={(event) => setDocumentName(event.target.value)} placeholder="Nombre del documento (opcional)" />
+              <Input type="file" onChange={(event) => setDocumentFile(event.target.files?.[0] ?? null)} required />
+              <Button type="submit" className="w-full">Subir documento</Button>
+            </form>
+            {client.documents.length === 0 ? (
+              <p className="text-muted-foreground">Sin documentos personales cargados.</p>
+            ) : (
+              client.documents.map((document) => (
+                <div key={document.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                  <div>
+                    <p className="font-medium">{document.documentName}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(document.uploadedAt)}</p>
+                  </div>
+                  <a href={document.fileUrl} className="text-primary underline" target="_blank" rel="noreferrer">Ver</a>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {client.role === "TENANT" && client.tenantOperations && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base"><Wrench className="h-4 w-4" /> Averías reportadas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              {client.tenantOperations.propertyIssues.length === 0 ? (
+                <p className="text-muted-foreground">Sin averías registradas.</p>
+              ) : (
+                client.tenantOperations.propertyIssues.map((issue) => (
+                  <div key={issue.id} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{issue.issueType}</p>
+                      <Badge variant="outline">{issue.status}</Badge>
+                    </div>
+                    <p className="mt-1 text-muted-foreground">{issue.description}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {issue.property.code} · {formatDate(issue.reportDate)}
+                    </p>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

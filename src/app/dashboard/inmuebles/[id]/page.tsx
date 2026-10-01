@@ -31,6 +31,11 @@ import {
 import { formatCurrency, formatDate, formatDateTime, PAYMENT_CATEGORIES } from "@/lib/utils";
 import { PropertyCrmPanel } from "@/components/properties/property-crm-panel";
 import { PropertyLocationMap, PropertyPhotoGallery } from "@/components/properties/property-visuals";
+import { PropertyAssetsPanel } from "@/components/properties/property-assets-panel";
+import { PropertyMaintenancePanel } from "@/components/properties/property-maintenance-panel";
+import { PropertyReservationsPanel } from "@/components/properties/property-reservations-panel";
+import { PropertyTagsEditor } from "@/components/properties/property-tags-editor";
+import { PropertyAuditTimeline } from "@/components/properties/property-audit-timeline";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,7 +85,14 @@ interface Property {
   status: string;
   condoName: string | null;
   condoAccountNumber: string | null;
+  condoAdministration: string | null;
+  condoFeeAmount: string | null;
+  condoContact: string | null;
+  tags: { id: string; name: string; color: string }[];
   electricityAccountNumber: string | null;
+  electricityProvider: string | null;
+  electricityMeterNumber: string | null;
+  electricityTariff: string | null;
   internetProvider: string | null;
   internetAccountNumber: string | null;
   createdAt: string;
@@ -323,22 +335,28 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
             <CardTitle className="text-base">Datos de servicios</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {property.condoName && (
+            {(property.condoName || property.condoAccountNumber || property.condoAdministration || property.condoFeeAmount || property.condoContact) && (
               <div className="flex items-center gap-3">
                 <Home className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Condominio</p>
-                  <p className="font-medium">{property.condoName}</p>
+                  <p className="font-medium">{property.condoName || "Sin nombre"}</p>
                   {property.condoAccountNumber && <p className="text-sm text-muted-foreground">Cta: {property.condoAccountNumber}</p>}
+                  {property.condoAdministration && <p className="text-sm text-muted-foreground">Administradora: {property.condoAdministration}</p>}
+                  {property.condoFeeAmount && <p className="text-sm text-muted-foreground">Cuota: {formatCurrency(property.condoFeeAmount)}</p>}
+                  {property.condoContact && <p className="text-sm text-muted-foreground">Contacto: {property.condoContact}</p>}
                 </div>
               </div>
             )}
-            {property.electricityAccountNumber && (
+            {(property.electricityAccountNumber || property.electricityProvider || property.electricityMeterNumber || property.electricityTariff) && (
               <div className="flex items-center gap-3">
                 <Zap className="h-4 w-4 text-muted-foreground" />
                 <div>
                   <p className="text-sm text-muted-foreground">Electricidad</p>
-                  <p className="font-medium">{property.electricityAccountNumber}</p>
+                  <p className="font-medium">{property.electricityAccountNumber || "Sin cuenta"}</p>
+                  {property.electricityProvider && <p className="text-sm text-muted-foreground">Empresa: {property.electricityProvider}</p>}
+                  {property.electricityMeterNumber && <p className="text-sm text-muted-foreground">Medidor: {property.electricityMeterNumber}</p>}
+                  {property.electricityTariff && <p className="text-sm text-muted-foreground">Tarifa: {property.electricityTariff}</p>}
                 </div>
               </div>
             )}
@@ -429,6 +447,19 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
           {property.visits.length === 0 ? <div className="flex items-center gap-3 border-t pt-4 text-sm text-muted-foreground"><ClipboardList className="h-4 w-4" />No hay visitas en la bitácora.</div> : <div className="overflow-x-auto border-t pt-4"><Table><TableHeader><TableRow><TableHead>Visitante</TableHead><TableHead>Fecha programada</TableHead><TableHead>Motivo</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Acción</TableHead></TableRow></TableHeader><TableBody>{property.visits.map((visit) => <TableRow key={visit.id}><TableCell><p className="font-medium">{visit.visitorName}</p>{visit.visitorPhone && <p className="text-xs text-muted-foreground">{visit.visitorPhone}</p>}</TableCell><TableCell>{formatDateTime(visit.scheduledAt)}</TableCell><TableCell>{visit.purpose || "-"}</TableCell><TableCell><Badge variant={visit.status === "completed" ? "success" : visit.status === "cancelled" ? "destructive" : "secondary"}>{visit.status === "scheduled" ? "Programada" : visit.status === "completed" ? "Realizada" : visit.status === "cancelled" ? "Cancelada" : "No asistió"}</Badge></TableCell><TableCell className="text-right">{visit.status === "scheduled" && <Select value={visit.status} onValueChange={(value) => updateVisitStatus(visit.id, value)}><SelectTrigger className="ml-auto w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="completed">Realizada</SelectItem><SelectItem value="cancelled">Cancelada</SelectItem><SelectItem value="no_show">No asistió</SelectItem></SelectContent></Select>}</TableCell></TableRow>)}</TableBody></Table></div>}
         </CardContent>
       </Card>
+      </section>
+
+      <section aria-labelledby="property-management-heading" className="space-y-3">
+        <div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Gestión del inmueble</p><h2 id="property-management-heading" className="mt-1 text-lg font-semibold">Inventario, mantenimiento y disponibilidad</h2></div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PropertyAssetsPanel propertyId={property.id} />
+          <PropertyMaintenancePanel propertyId={property.id} />
+        </div>
+        <PropertyReservationsPanel propertyId={property.id} />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PropertyTagsEditor propertyId={property.id} initialTags={property.tags ?? []} />
+          <PropertyAuditTimeline propertyId={property.id} />
+        </div>
       </section>
 
       <section aria-labelledby="property-activity-heading" className="space-y-3">

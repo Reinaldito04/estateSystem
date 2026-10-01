@@ -56,7 +56,8 @@ interface Issue {
   repairCost: string;
   receiptUrl: string | null;
   property: { id: string; code: string; title: string };
-  tenant: { id: string; fullName: string; phone: string };
+  tenant: { id: string; fullName: string; phone: string } | null;
+  reportedByType: string;
   createdAt: string;
 }
 
@@ -100,6 +101,8 @@ export default function IssuesPage() {
     issueType: "",
     description: "",
     status: "REPORTED",
+    reportDate: "",
+    reportedByType: "CLIENT",
     repairDate: "",
     repairDetails: "",
     repairCost: "",
@@ -177,7 +180,9 @@ export default function IssuesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          tenantId: formData.tenantId || null,
           repairCost: parseFloat(formData.repairCost) || 0,
+          reportDate: formData.reportDate || null,
           repairDate: formData.repairDate || null,
         }),
       });
@@ -204,10 +209,12 @@ export default function IssuesPage() {
     setEditingIssue(issue);
     setFormData({
       propertyId: issue.property.id,
-      tenantId: issue.tenant.id,
+      tenantId: issue.tenant?.id || "",
       issueType: issue.issueType,
       description: issue.description,
       status: issue.status,
+      reportDate: issue.reportDate ? issue.reportDate.split("T")[0] : "",
+      reportedByType: issue.reportedByType || "CLIENT",
       repairDate: issue.repairDate ? issue.repairDate.split("T")[0] : "",
       repairDetails: issue.repairDetails || "",
       repairCost: issue.repairCost,
@@ -240,6 +247,8 @@ export default function IssuesPage() {
       issueType: "",
       description: "",
       status: "REPORTED",
+      reportDate: "",
+      reportedByType: "CLIENT",
       repairDate: "",
       repairDetails: "",
       repairCost: "",
@@ -302,7 +311,7 @@ export default function IssuesPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="tenantId">Inquilino *</Label>
+                  <Label htmlFor="tenantId">Inquilino</Label>
                   <Select value={formData.tenantId} onValueChange={(v) => setFormData({ ...formData, tenantId: v })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar inquilino" />
@@ -334,6 +343,29 @@ export default function IssuesPage() {
                       {ISSUE_STATUSES.map((s) => (
                         <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reportDate">Fecha de Reporte</Label>
+                  <Input
+                    id="reportDate"
+                    type="date"
+                    value={formData.reportDate}
+                    onChange={(e) => setFormData({ ...formData, reportDate: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reportedByType">Reportado por</Label>
+                  <Select value={formData.reportedByType} onValueChange={(v) => setFormData({ ...formData, reportedByType: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CLIENT">Inquilino</SelectItem>
+                      <SelectItem value="OWNER">Propietario</SelectItem>
+                      <SelectItem value="USER">Usuario interno</SelectItem>
+                      <SelectItem value="SYSTEM">Sistema</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

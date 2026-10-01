@@ -46,14 +46,19 @@ interface ExpiringLease {
     title: string;
     owner: { id: string; fullName: string; phone: string };
   };
-  tenant: { id: string; fullName: string; phone: string };
+  tenant: { id: string; fullName: string; phone: string } | null;
   notices: { id: string; noticeType: string; issueDate: string }[];
 }
 
 interface Notice {
   id: string;
   noticeType: string;
+  recipientType: string | null;
+  status: string;
+  title: string | null;
+  body: string | null;
   issueDate: string;
+  sentAt: string | null;
   proposedCanonAmount: string | null;
   proposedStartDate: string | null;
   proposedEndDate: string | null;
@@ -63,7 +68,8 @@ interface Notice {
     id: string;
     contractNumber: string;
     property: { id: string; code: string; title: string };
-    tenant: { id: string; fullName: string; phone: string };
+    owner: { id: string; fullName: string } | null;
+    tenant: { id: string; fullName: string; phone: string } | null;
   };
 }
 
@@ -89,6 +95,9 @@ export default function NotificationsPage() {
   const [selectedLease, setSelectedLease] = useState<ExpiringLease | null>(null);
   const [formData, setFormData] = useState({
     noticeType: "RENOVATION_PROPOSAL",
+    recipientType: "TENANT",
+    title: "",
+    body: "",
     proposedCanonAmount: "",
     proposedStartDate: "",
     proposedEndDate: "",
@@ -176,6 +185,9 @@ export default function NotificationsPage() {
         body: JSON.stringify({
           leaseId: selectedLease.id,
           noticeType: formData.noticeType,
+          recipientType: formData.recipientType,
+          title: formData.title || undefined,
+          body: formData.body || undefined,
           proposedCanonAmount: formData.proposedCanonAmount ? parseFloat(formData.proposedCanonAmount) : undefined,
           proposedStartDate: formData.proposedStartDate || undefined,
           proposedEndDate: formData.proposedEndDate || undefined,
@@ -202,6 +214,9 @@ export default function NotificationsPage() {
     setSelectedLease(null);
     setFormData({
       noticeType: "RENOVATION_PROPOSAL",
+      recipientType: "TENANT",
+      title: "",
+      body: "",
       proposedCanonAmount: "",
       proposedStartDate: "",
       proposedEndDate: "",
@@ -213,12 +228,44 @@ export default function NotificationsPage() {
     setSelectedLease(lease);
     setFormData({
       noticeType: "RENOVATION_PROPOSAL",
+      recipientType: "TENANT",
+      title: "",
+      body: "",
       proposedCanonAmount: lease.monthlyCanonAmount,
       proposedStartDate: "",
       proposedEndDate: "",
       notes: "",
     });
     setIsDialogOpen(true);
+  };
+
+  const markAsSent = async (id: string) => {
+    try {
+      const response = await fetch(`/api/notices/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "SENT" }),
+      });
+      if (response.ok) {
+        toast({ title: "Actualizado", description: "Notificación marcada como enviada" });
+        fetchNotices();
+      } else {
+        toast({ title: "Error", description: "No se pudo actualizar", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
+    }
+  };
+
+  const statusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      DRAFT: "Borrador",
+      SENT: "Enviada",
+      ACCEPTED: "Aceptada",
+      REJECTED: "Rechazada",
+      EXPIRED: "Vencida",
+    };
+    return labels[status] || status;
   };
 
   const getNoticeTypeLabel = (type: string) => {
@@ -300,7 +347,7 @@ export default function NotificationsPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <User className="h-3 w-3" />
-                          {lease.tenant.fullName}
+                          {lease.tenant?.fullName || "Sin inquilino"}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
@@ -344,12 +391,15 @@ export default function NotificationsPage() {
                     <div className="flex items-center gap-2">
                       {getNoticeTypeBadge(notice.noticeType)}
                       <span className="font-medium">{notice.lease.contractNumber}</span>
+                      <Badge variant={notice.status === "SENT" ? "success" : notice.status === "REJECTED" ? "destructive" : "outline"}>
+                        {statusLabel(notice.status)}
+                      </Badge>
                     </div>
                     <span className="text-sm text-muted-foreground">{formatDate(notice.issueDate)}</span>
                   </div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <p>Inmueble: {notice.lease.property.code} - {notice.lease.property.title}</p>
-                    <p>Inquilino: {notice.lease.tenant.fullName}</p>
+                    <p>Destinatario: {notice.recipientType === "OWNER" ? notice.lease.owner?.fullName || "Propietario" : notice.lease.tenant?.fullName || "Inquilino"}</p>
                     {notice.proposedCanonAmount && (
                       <p>Canon propuesto: {formatCurrency(notice.proposedCanonAmount)}</p>
                     )}
@@ -358,7 +408,21 @@ export default function NotificationsPage() {
                         Período propuesto: {formatDate(notice.proposedStartDate)} - {formatDate(notice.proposedEndDate)}
                       </p>
                     )}
-                    {notice.notes && <p className="mt-2 p-2 bg-muted rounded">{notice.notes}</p>}
+                    {notice.body && <p className="mt-2 p-2 bg-muted rounded whitespace-pre-line">{notice.body}</p>}
+                    {notice.notes && !notice.body && <p className="mt-2 p-2 bg-muted rounded">{notice.notes}</p>}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => window.open(`/api/notices/${notice.id}/letter`, "_blank")}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Descargar carta
+                    </Button>
+                    {notice.status !== "SENT" && (
+                      <Button variant="outline" size="sm" onClick={() => markAsSent(notice.id)}>
+                        <Send className="h-4 w-4 mr-2" />
+                        Marcar enviada
+                      </Button>
+                    )}
+                    {notice.sentAt && <span className="self-center text-xs text-muted-foreground">Enviada el {formatDate(notice.sentAt)}</span>}
                   </div>
                 </div>
               ))}
@@ -388,6 +452,27 @@ export default function NotificationsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium">Destinatario</label>
+                <Select value={formData.recipientType} onValueChange={(v) => setFormData({ ...formData, recipientType: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TENANT">Inquilino</SelectItem>
+                    <SelectItem value="OWNER">Propietario</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Título de la carta</label>
+                <input
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="Notificación de renovación / nuevo contrato"
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Canon Propuesto</label>
                 <input
                   type="number"
@@ -414,6 +499,15 @@ export default function NotificationsPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={formData.proposedEndDate}
                   onChange={(e) => setFormData({ ...formData, proposedEndDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium">Cuerpo de la carta (opcional)</label>
+                <textarea
+                  className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  value={formData.body}
+                  onChange={(e) => setFormData({ ...formData, body: e.target.value })}
+                  placeholder="Si se deja vacío se generará un texto automático según el tipo de notificación."
                 />
               </div>
               <div className="space-y-2 md:col-span-2">

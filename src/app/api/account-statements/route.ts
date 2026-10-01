@@ -1,88 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { buildAccountStatement } from "@/lib/account-statement";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const propertyId = searchParams.get("propertyId");
-    const startDate = searchParams.get("startDate");
-    const endDate = searchParams.get("endDate");
-
-    if (!propertyId) {
-      return NextResponse.json({ error: "propertyId es requerido" }, { status: 400 });
-    }
-
-    const property = await prisma.property.findUnique({
-      where: { id: propertyId },
-      include: {
-        owner: { select: { id: true, fullName: true, phone: true, email: true } },
-      },
+    const data = await buildAccountStatement({
+      propertyId: searchParams.get("propertyId"),
+      ownerId: searchParams.get("ownerId"),
+      tenantId: searchParams.get("tenantId"),
+      startDate: searchParams.get("startDate"),
+      endDate: searchParams.get("endDate"),
     });
-
-    if (!property) {
-      return NextResponse.json({ error: "Inmueble no encontrado" }, { status: 404 });
-    }
-
-    const dateFilter: Prisma.TransactionWhereInput = {
-      propertyId,
-      ...(startDate && endDate && {
-        paymentDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate),
-        },
-      }),
-    };
-
-    const transactions = await prisma.transaction.findMany({
-      where: dateFilter,
-      orderBy: { paymentDate: "asc" },
-      include: {
-        lease: { select: { id: true, contractNumber: true } },
-      },
-    });
-
-    const incomeCategories = ["RENT_CANON", "RESERVATION", "SECURITY_DEPOSIT", "CONTRACT_FEE", "CONDO_FEE", "ELECTRICITY", "INTERNET", "OTHER_SERVICE"];
-    const expenseCategories = ["CONDO_FEE", "ELECTRICITY", "INTERNET", "OTHER_SERVICE"];
-
-    const income = transactions
-      .filter((t) => incomeCategories.includes(t.category))
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-
-    const expenses = transactions
-      .filter((t) => expenseCategories.includes(t.category))
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-
-    const issues = await prisma.propertyIssue.findMany({
-      where: {
-        propertyId,
-        ...(startDate && endDate && {
-          repairDate: {
-            gte: new Date(startDate),
-            lte: new Date(endDate),
-          },
-        }),
-      },
-    });
-
-    const repairCosts = issues.reduce((sum, i) => sum + Number(i.repairCost), 0);
-
-    const balance = income - expenses - repairCosts;
-
-    return NextResponse.json({
-      property,
-      period: { startDate, endDate },
-      summary: {
-        totalIncome: income,
-        totalExpenses: expenses,
-        totalRepairCosts: repairCosts,
-        balance,
-      },
-      transactions,
-      issues,
-    });
+    return NextResponse.json(data);
   } catch (error) {
-    console.error("Error generating account statement:", error);
-    return NextResponse.json({ error: "Error al generar estado de cuenta" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Error al generar estado de cuenta";
+    const status = message.includes("Se requiere") || message.includes("No se encontraron") ? 400 : 500;
+    if (status === 500) console.error("Error generating account statement:", error);
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const data = await buildAccountStatement({
+      propertyId: body.propertyId ?? null,
+      ownerId: body.ownerId ?? null,
+      tenantId: body.tenantId ?? null,
+      startDate: body.startDate ?? null,
+      endDate: body.endDate ?? null,
+    });
+
+    const audience = data.scope === "TENANT" ? "TENANT" : "OWNER";
+    const clientId = body.ownerId ?? body.tenantId ?? null;
+
+    const statement = await prisma.accountStatement.create({
+      data: {
+        audience,
+        propertyId: body.propertyId ?? null,
+        clientId,
+        periodStart: body.startDate ? new Date(body.startDate) : null,
+        periodEnd: body.endDate ? new Date(body.endDate) : null,
+        summary: data.summary as object,
+      },
+    });
+
+    return NextResponse.json({ statement, ...data }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error al guardar estado de cuenta";
+    const status = message.includes("Se requiere") || message.includes("No se encontraron") ? 400 : 500;
+    if (status === 500) console.error("Error saving account statement:", error);
+    return NextResponse.json({ error: message }, { status });
   }
 }

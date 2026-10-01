@@ -6,14 +6,38 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(amount: number | string | Decimal): string {
+export function formatCurrency(amount: number | string | Decimal, currency = "USD"): string {
   const num = typeof amount === "string" ? parseFloat(amount) : Number(amount);
-  return new Intl.NumberFormat("es-VE", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(num);
+  try {
+    return new Intl.NumberFormat("es-VE", {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+    }).format(num);
+  } catch {
+    return `${currency} ${num.toFixed(2)}`;
+  }
 }
+
+export const CURRENCIES = [
+  { value: "USD", label: "USD - Dólar" },
+  { value: "EUR", label: "EUR - Euro" },
+  { value: "MXN", label: "MXN - Peso mexicano" },
+  { value: "COP", label: "COP - Peso colombiano" },
+  { value: "ARS", label: "ARS - Peso argentino" },
+  { value: "CLP", label: "CLP - Peso chileno" },
+  { value: "PEN", label: "PEN - Sol peruano" },
+  { value: "BRL", label: "BRL - Real" },
+  { value: "OTHER", label: "Otra" },
+] as const;
+
+export const PAYMENT_STATUSES = [
+  { value: "PENDING", label: "Pendiente", color: "bg-yellow-100 text-yellow-800" },
+  { value: "PAID", label: "Pagado", color: "bg-green-100 text-green-800" },
+  { value: "OVERDUE", label: "Vencido", color: "bg-red-100 text-red-800" },
+  { value: "CANCELLED", label: "Cancelado", color: "bg-gray-100 text-gray-800" },
+  { value: "REFUNDED", label: "Reembolsado", color: "bg-purple-100 text-purple-800" },
+] as const;
 
 export function formatDate(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;

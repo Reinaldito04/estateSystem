@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -16,83 +17,51 @@ import {
   Clock,
   TrendingUp,
 } from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate, PAYMENT_CATEGORIES, PAYMENT_STATUSES } from "@/lib/utils";
 
-const stats = [
-  {
-    name: "Propietarios",
-    value: "24",
-    change: "+2 este mes",
-    icon: Users,
-    color: "text-blue-600 bg-blue-500/10",
-    href: "/dashboard/propietarios",
-  },
-  {
-    name: "Clientes inquilinos",
-    value: "38",
-    change: "+5 este mes",
-    icon: Building2,
-    color: "text-emerald-600 bg-emerald-500/10",
-    href: "/dashboard/clientes",
-  },
-  {
-    name: "Inmuebles",
-    value: "42",
-    change: "3 disponibles",
-    icon: Home,
-    color: "text-violet-600 bg-violet-500/10",
-    href: "/dashboard/inmuebles",
-  },
-  {
-    name: "Contratos Vigentes",
-    value: "35",
-    change: "5 por vencer",
-    icon: FileText,
-    color: "text-amber-600 bg-amber-500/10",
-    href: "/dashboard/contratos",
-  },
-  {
-    name: "Ingresos Mes",
-    value: formatCurrency(45000),
-    change: "+12% vs mes anterior",
-    icon: DollarSign,
-    color: "text-emerald-600 bg-emerald-500/10",
-    href: "/dashboard/transacciones",
-  },
-  {
-    name: "Averías Pendientes",
-    value: "7",
-    change: "2 urgentes",
-    icon: AlertTriangle,
-    color: "text-red-600 bg-red-500/10",
-    href: "/dashboard/averias",
-  },
-];
-
-const recentActivity = [
-  { id: 1, type: "Pago", description: "Canon alquiler - Inmueble C-001", amount: "$850", date: "Hoy", status: "Completado" },
-  { id: 2, type: "Contrato", description: "Nuevo contrato - Inmueble C-005", amount: "$1,200", date: "Ayer", status: "Pendiente" },
-  { id: 3, type: "Avería", description: "Fuga de agua - Inmueble C-012", amount: "$0", date: "Ayer", status: "En proceso" },
-  { id: 4, type: "Pago", description: "Condominio - Inmueble C-003", amount: "$150", date: "Hace 2 días", status: "Completado" },
-  { id: 5, type: "Documento", description: "Cédula propietario - Inmueble C-008", amount: "$0", date: "Hace 3 días", status: "Subido" },
-];
-
-const upcomingExpirations = [
-  { property: "C-001", tenant: "Juan Pérez", endDate: "2026-10-15", daysLeft: 16, canon: "$850" },
-  { property: "C-005", tenant: "María González", endDate: "2026-10-20", daysLeft: 21, canon: "$1,200" },
-  { property: "C-012", tenant: "Carlos Rodríguez", endDate: "2026-10-25", daysLeft: 26, canon: "$950" },
-  { property: "C-003", tenant: "Ana Martínez", endDate: "2026-11-01", daysLeft: 33, canon: "$1,100" },
-  { property: "C-008", tenant: "Luis Fernández", endDate: "2026-11-10", daysLeft: 42, canon: "$780" },
-];
-
-const activityStatusStyles: Record<string, string> = {
-  Completado: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  Pendiente: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  "En proceso": "bg-sky-500/10 text-sky-700 dark:text-sky-300",
-  Subido: "bg-muted text-muted-foreground",
+type Stat = {
+  name: string;
+  value: string;
+  change: string;
+  icon: typeof Users;
+  color: string;
+  href: string;
 };
 
-function StatCard({ stat }: { stat: (typeof stats)[0] }) {
+type DashboardData = {
+  stats: {
+    owners: number;
+    tenants: number;
+    properties: number;
+    availableProperties: number;
+    activeLeases: number;
+    pendingIssues: number;
+    expiringLeases: number;
+    monthIncomeByCurrency: { currency: string; total: number }[];
+  };
+  recentTransactions: {
+    id: string;
+    category: string;
+    amount: string;
+    currency: string;
+    status: string;
+    description: string | null;
+    paymentDate: string;
+    property: { code: string; title: string };
+  }[];
+  upcomingExpirations: {
+    id: string;
+    contractNumber: string;
+    property: { code: string; title: string };
+    tenant: string;
+    endDate: string;
+    daysLeft: number;
+    canon: string;
+    currency: string;
+  }[];
+};
+
+function StatCard({ stat }: { stat: Stat }) {
   const Icon = stat.icon;
   return (
     <Link href={stat.href} className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
@@ -118,6 +87,46 @@ function StatCard({ stat }: { stat: (typeof stats)[0] }) {
 }
 
 export default function DashboardPage() {
+  const [data, setData] = useState<DashboardData | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const response = await fetch("/api/dashboard");
+        if (response.ok) setData(await response.json());
+      } catch (error) {
+        console.error("Error loading dashboard:", error);
+      }
+    };
+    load();
+  }, []);
+
+  const categoryLabel = (category: string) =>
+    PAYMENT_CATEGORIES.find((item) => item.value === category)?.label || category;
+
+  const statusLabel = (status: string) =>
+    PAYMENT_STATUSES.find((item) => item.value === status)?.label || status;
+
+  const stats: Stat[] = data
+    ? [
+        { name: "Propietarios", value: String(data.stats.owners), change: "Cartera registrada", icon: Users, color: "text-blue-600 bg-blue-500/10", href: "/dashboard/propietarios" },
+        { name: "Clientes inquilinos", value: String(data.stats.tenants), change: "Cartera registrada", icon: Building2, color: "text-emerald-600 bg-emerald-500/10", href: "/dashboard/clientes" },
+        { name: "Inmuebles", value: String(data.stats.properties), change: `${data.stats.availableProperties} disponibles`, icon: Home, color: "text-violet-600 bg-violet-500/10", href: "/dashboard/inmuebles" },
+        { name: "Contratos Vigentes", value: String(data.stats.activeLeases), change: `${data.stats.expiringLeases} por vencer`, icon: FileText, color: "text-amber-600 bg-amber-500/10", href: "/dashboard/contratos" },
+        {
+          name: "Ingresos Mes",
+          value: data.stats.monthIncomeByCurrency.length > 0
+            ? data.stats.monthIncomeByCurrency.map((row) => formatCurrency(row.total, row.currency)).join(" · ")
+            : formatCurrency(0),
+          change: "Pagos del mes en curso",
+          icon: DollarSign,
+          color: "text-emerald-600 bg-emerald-500/10",
+          href: "/dashboard/transacciones",
+        },
+        { name: "Averías Pendientes", value: String(data.stats.pendingIssues), change: "Reportadas o en proceso", icon: AlertTriangle, color: "text-red-600 bg-red-500/10", href: "/dashboard/averias" },
+      ]
+    : [];
+
   return (
     <div className="space-y-8 animate-fade-in">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -145,9 +154,9 @@ export default function DashboardPage() {
       </div>
 
       <section aria-label="Indicadores principales" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {stats.map((stat) => (
-          <StatCard key={stat.name} stat={stat} />
-        ))}
+        {data ? stats.map((stat) => <StatCard key={stat.name} stat={stat} />) : (
+          <p className="text-sm text-muted-foreground">Cargando indicadores…</p>
+        )}
       </section>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
@@ -166,30 +175,34 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/60">
-              {recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/40 sm:px-6">
-                  <div className="flex min-w-0 items-center gap-3.5">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
-                      <Calendar className="h-4 w-4" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{activity.description}</p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {activity.type}
-                        <span aria-hidden="true">·</span>
-                        <Clock className="h-3 w-3" aria-hidden="true" />
-                        {activity.date}
-                      </p>
+              {!data || data.recentTransactions.length === 0 ? (
+                <p className="px-5 py-6 text-sm text-muted-foreground sm:px-6">Sin movimientos registrados.</p>
+              ) : (
+                data.recentTransactions.map((transaction) => (
+                  <div key={transaction.id} className="flex items-center justify-between gap-3 px-5 py-4 transition-colors hover:bg-muted/40 sm:px-6">
+                    <div className="flex min-w-0 items-center gap-3.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                        <Calendar className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{transaction.description || categoryLabel(transaction.category)}</p>
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          {transaction.property.code}
+                          <span aria-hidden="true">·</span>
+                          <Clock className="h-3 w-3" aria-hidden="true" />
+                          {formatDate(transaction.paymentDate)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm font-semibold tabular-nums">{formatCurrency(transaction.amount, transaction.currency)}</p>
+                      <span className="mt-1 inline-flex rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {statusLabel(transaction.status)}
+                      </span>
                     </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-sm font-semibold tabular-nums">{activity.amount}</p>
-                    <span className={cn("mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium", activityStatusStyles[activity.status])}>
-                      {activity.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -198,7 +211,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 border-b border-border/60 px-5 py-4 sm:px-6">
             <div>
               <CardTitle className="text-base font-semibold">Contratos por vencer</CardTitle>
-              <p className="mt-0.5 text-xs text-muted-foreground">Próximos 30 días</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Según días de aviso por contrato</p>
             </div>
             <Button variant="ghost" size="sm" asChild className="gap-1.5">
               <Link href="/dashboard/contratos">
@@ -209,24 +222,28 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="divide-y divide-border/60">
-              {upcomingExpirations.map((contract, index) => (
-                <div key={contract.property} className={cn("flex items-center justify-between gap-3 py-3.5", index === 0 && "pt-4", index === upcomingExpirations.length - 1 && "pb-0")}>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {contract.property} <span className="text-muted-foreground">·</span> {contract.tenant}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Canon: {contract.canon}</p>
+              {!data || data.upcomingExpirations.length === 0 ? (
+                <p className="py-3.5 text-sm text-muted-foreground">Sin contratos próximos a vencer.</p>
+              ) : (
+                data.upcomingExpirations.map((contract, index) => (
+                  <div key={contract.id} className={cn("flex items-center justify-between gap-3 py-3.5", index === 0 && "pt-4", index === data.upcomingExpirations.length - 1 && "pb-0")}>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {contract.property.code} <span className="text-muted-foreground">·</span> {contract.tenant}
+                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">Canon: {formatCurrency(contract.canon, contract.currency)}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className={cn("text-sm font-semibold tabular-nums", contract.daysLeft <= 15 ? "text-destructive" : "text-amber-700 dark:text-amber-300")}>
+                        {contract.daysLeft} días
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Vence: {formatDate(contract.endDate)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className={cn("text-sm font-semibold tabular-nums", contract.daysLeft <= 15 ? "text-destructive" : "text-amber-700 dark:text-amber-300")}>
-                      {contract.daysLeft} días
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      Vence: {new Date(contract.endDate).toLocaleDateString("es-VE")}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </CardContent>
         </Card>

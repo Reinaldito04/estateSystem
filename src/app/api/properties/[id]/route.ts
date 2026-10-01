@@ -4,6 +4,7 @@ import { isValidPropertyFilename, removePropertyFile } from "@/lib/property-file
 import { calculateLeaseBalance } from "@/lib/lease-balance";
 import { z } from "zod";
 import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
+import { recordAudit } from "@/lib/audit";
 
 const propertyUpdateSchema = z.object({
   code: z.string().min(1).optional(),
@@ -26,6 +27,12 @@ const propertyUpdateSchema = z.object({
   electricityAccountNumber: z.string().optional(),
   internetProvider: z.string().optional(),
   internetAccountNumber: z.string().optional(),
+  condoAdministration: z.string().optional(),
+  condoFeeAmount: z.number().min(0).nullable().optional(),
+  condoContact: z.string().optional(),
+  electricityProvider: z.string().optional(),
+  electricityMeterNumber: z.string().optional(),
+  electricityTariff: z.string().optional(),
   videoUrl: z.string().optional(),
   floorPlanUrl: z.string().optional(),
   virtualTourUrl: z.string().optional(),
@@ -33,6 +40,7 @@ const propertyUpdateSchema = z.object({
   captureExclusive: z.boolean().optional(),
   captureContractUrl: z.string().optional(),
   status: z.string().optional(),
+  tagIds: z.array(z.string().uuid()).optional(),
 });
 
 export async function GET(
@@ -69,6 +77,7 @@ export async function GET(
         documents: { orderBy: { uploadedAt: "desc" } },
         keys: { orderBy: { assignedAt: "desc" } },
         visits: { orderBy: { scheduledAt: "desc" } },
+        tags: { include: { tag: true } },
         _count: { select: { leases: true, transactions: true, issues: true } },
       },
     });
@@ -80,6 +89,7 @@ export async function GET(
     return NextResponse.json({
       ...property,
       status: propertyStatusToUi(property.status),
+      tags: property.tags.map((propertyTag) => propertyTag.tag),
       leases: property.leases.map(({ transactions, leaseClients, ...lease }) => ({
         ...lease,
         tenant: leaseClients[0]?.client || null,
@@ -122,7 +132,7 @@ export async function PUT(
       }
     }
 
-    const { ownerId, propertyType, status, ...propertyFields } = validatedData;
+    const { ownerId, propertyType, status, tagIds, ...propertyFields } = validatedData;
 
     const property = await prisma.property.update({
       where: { id },
@@ -131,15 +141,24 @@ export async function PUT(
         ...(ownerId !== undefined && { owner: { connect: { id: ownerId } } }),
         ...(propertyType !== undefined && { propertyType: toPropertyType(propertyType) }),
         ...(status !== undefined && { status: toPropertyStatus(status) }),
+        ...(tagIds !== undefined && {
+          tags: { deleteMany: {}, create: tagIds.map((tagId) => ({ tagId })) },
+        }),
       },
       include: {
         owner: { select: { id: true, fullName: true, phone: true } },
         photos: true,
+        tags: { include: { tag: true } },
         _count: { select: { leases: true, transactions: true, issues: true } },
       },
     });
 
-    return NextResponse.json({ ...property, status: propertyStatusToUi(property.status) });
+    await recordAudit({ entityType: "Property", entityId: id, action: "UPDATE", changes: validatedData, request });
+    return NextResponse.json({
+      ...property,
+      status: propertyStatusToUi(property.status),
+      tags: property.tags.map((propertyTag) => propertyTag.tag),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 400 });

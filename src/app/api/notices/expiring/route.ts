@@ -1,56 +1,25 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { MAX_NOTICE_DAYS, generateExpirationNotices, isWithinNoticeWindow } from "@/lib/lease-alerts";
 
-export async function POST() {
+const DAY = 24 * 60 * 60 * 1000;
+
+function resolveHorizon(request: NextRequest, fallback: number) {
+  const requested = Number(new URL(request.url).searchParams.get("days") || "");
+  if (Number.isFinite(requested) && requested > 0) {
+    return Math.min(MAX_NOTICE_DAYS, Math.max(1, requested));
+  }
+  return fallback;
+}
+
+export async function POST(request: NextRequest) {
   try {
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-
-    const expiringLeases = await prisma.lease.findMany({
-      where: {
-        isActive: true,
-        endDate: {
-          gte: new Date(),
-          lte: thirtyDaysFromNow,
-        },
-      },
-      include: {
-        property: {
-          include: {
-            owner: { select: { id: true, fullName: true } },
-          },
-        },
-        leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true } } } },
-      },
-    });
-
-    const existingNotices = await prisma.leaseProposalAndNotice.findMany({
-      where: {
-        noticeType: "LEASE_EXPIRATION",
-        leaseId: { in: expiringLeases.map((l) => l.id) },
-      },
-    });
-
-    const existingLeaseIds = new Set(existingNotices.map((n) => n.leaseId));
-    const newNotices = [];
-
-    for (const lease of expiringLeases) {
-      if (!existingLeaseIds.has(lease.id)) {
-        const notice = await prisma.leaseProposalAndNotice.create({
-          data: {
-            leaseId: lease.id,
-            noticeType: "LEASE_EXPIRATION",
-            notes: `El contrato ${lease.contractNumber} del inmueble ${lease.property.code} - ${lease.property.title} vence el ${lease.endDate.toLocaleDateString("es-VE")}. Cliente: ${lease.leaseClients[0]?.client.fullName || "No asignado"}. Propietario: ${lease.property.owner.fullName}.`,
-          },
-        });
-        newNotices.push(notice);
-      }
-    }
-
+    const horizon = resolveHorizon(request, MAX_NOTICE_DAYS);
+    const result = await generateExpirationNotices(horizon);
     return NextResponse.json({
-      message: `Se generaron ${newNotices.length} notificaciones de vencimiento`,
-      expiringLeases: expiringLeases.length,
-      newNotices: newNotices.length,
+      message: `Se generaron ${result.newNotices} notificaciones de vencimiento`,
+      expiringLeases: result.expiringLeases,
+      newNotices: result.newNotices,
     });
   } catch (error) {
     console.error("Error generating expiration notices:", error);
@@ -58,34 +27,31 @@ export async function POST() {
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    const horizon = resolveHorizon(request, 90);
+    const now = new Date();
+    const maxDate = new Date(now.getTime() + horizon * DAY);
 
-    const expiringLeases = await prisma.lease.findMany({
-      where: {
-        isActive: true,
-        endDate: {
-          gte: new Date(),
-          lte: thirtyDaysFromNow,
-        },
-      },
+    const candidates = await prisma.lease.findMany({
+      where: { isActive: true, endDate: { gte: now, lte: maxDate } },
       include: {
-        property: {
-          include: {
-            owner: { select: { id: true, fullName: true, phone: true } },
-          },
-        },
+        property: { include: { owner: { select: { id: true, fullName: true, phone: true } } } },
         leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, phone: true } } } },
-        notices: {
-          where: { noticeType: "LEASE_EXPIRATION" },
-        },
+        notices: { where: { noticeType: "LEASE_EXPIRATION" } },
       },
       orderBy: { endDate: "asc" },
     });
 
-    return NextResponse.json({ data: expiringLeases.map(({ leaseClients, ...lease }) => ({ ...lease, tenant: leaseClients[0]?.client || null })) });
+    const expiringLeases = candidates
+      .filter((lease) => isWithinNoticeWindow(lease.endDate, lease.renewalNoticeDays, now, horizon))
+      .map(({ leaseClients, ...lease }) => ({
+        ...lease,
+        owner: lease.property.owner,
+        tenant: leaseClients[0]?.client || null,
+      }));
+
+    return NextResponse.json({ data: expiringLeases, horizon });
   } catch (error) {
     console.error("Error fetching expiring leases:", error);
     return NextResponse.json({ error: "Error al obtener contratos por vencer" }, { status: 500 });

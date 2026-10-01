@@ -45,3 +45,4 @@ node_modules/
 dist/
 .env
 /storage/property-files/
+/storage/client-files/

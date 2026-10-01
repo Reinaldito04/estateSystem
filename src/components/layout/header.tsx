@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Bell, Menu, Sun, Moon, User, Building, AlertTriangle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,8 @@ const breadcrumbMap: Record<string, string> = {
   "/dashboard/contratos": "Contratos",
   "/dashboard/transacciones": "Transacciones",
   "/dashboard/averias": "Averías",
+  "/dashboard/calendario": "Calendario",
+  "/dashboard/proveedores": "Proveedores",
   "/dashboard/estados-cuenta": "Estados de Cuenta",
   "/dashboard/documentos": "Documentos",
   "/dashboard/notificaciones": "Notificaciones",
@@ -29,6 +32,22 @@ const breadcrumbMap: Record<string, string> = {
 export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const [alertCount, setAlertCount] = useState(0);
+
+  useEffect(() => {
+    const loadAlerts = async () => {
+      try {
+        const response = await fetch("/api/notices/automated?days=30");
+        if (response.ok) {
+          const data = await response.json();
+          setAlertCount(Array.isArray(data.data) ? data.data.length : 0);
+        }
+      } catch {
+        setAlertCount(0);
+      }
+    };
+    loadAlerts();
+  }, []);
 
   const getBreadcrumb = () => {
     if (pathname === "/dashboard") return ["Dashboard"];
@@ -89,11 +108,15 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
             <span className="sr-only">Toggle theme</span>
           </Button>
 
-          <Button variant="ghost" size="icon" className="relative" aria-label="Notificaciones" title="Notificaciones">
-            <Bell className="h-[1.1rem] w-[1.1rem]" />
-            <span className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground ring-2 ring-background">
-              3
-            </span>
+          <Button variant="ghost" size="icon" className="relative" aria-label="Notificaciones" title="Notificaciones" asChild>
+            <a href="/dashboard/notificaciones">
+              <Bell className="h-[1.1rem] w-[1.1rem]" />
+              {alertCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground ring-2 ring-background">
+                  {alertCount > 9 ? "9+" : alertCount}
+                </span>
+              )}
+            </a>
           </Button>
 
           <div className="mx-1.5 h-6 w-px bg-border/60" />
