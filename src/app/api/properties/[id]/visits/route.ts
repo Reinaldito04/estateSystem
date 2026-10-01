@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { toVisitStatus, visitStatusToUi } from "@/lib/enum-mapping";
 
 const visitSchema = z.object({
@@ -26,7 +27,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const visit = await prisma.propertyVisit.create({ data: { ...body, status: toVisitStatus(body.status), propertyId: id } });
     return NextResponse.json({ ...visit, status: visitStatusToUi(visit.status) }, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     return NextResponse.json({ error: "Error al registrar visita" }, { status: 500 });
   }
 }

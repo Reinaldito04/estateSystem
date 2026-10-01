@@ -5,10 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldError } from "@/components/ui/field-error";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, Trash2, Pencil, Star } from "lucide-react";
 import { PROVIDER_TYPES, labelOf } from "@/lib/management";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 type Provider = {
   id: string;
@@ -44,6 +46,7 @@ export default function ProvidersPage() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   const fetchProviders = async () => {
@@ -71,6 +74,7 @@ export default function ProvidersPage() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
+    setFieldErrors({});
     try {
       const response = await fetch(editingId ? `/api/providers/${editingId}` : "/api/providers", {
         method: editingId ? "PUT" : "POST",
@@ -87,7 +91,9 @@ export default function ProvidersPage() {
         fetchProviders();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "No se pudo guardar", variant: "destructive" });
+        const parsed = getApiError(error, "No se pudo guardar");
+        setFieldErrors(parsed.fields);
+        toast({ title: "Error", description: parsed.message, variant: "destructive" });
       }
     } finally {
       setIsSubmitting(false);
@@ -129,16 +135,17 @@ export default function ProvidersPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="grid gap-3 md:grid-cols-3">
-            <div className="space-y-1"><Label htmlFor="p-company">Nombre / Empresa *</Label><Input id="p-company" required value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} /></div>
+            <div className="space-y-1"><Label htmlFor="p-company">Nombre / Empresa *</Label><Input id="p-company" required value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} /><FieldError message={fieldErrors.companyName} /></div>
             <div className="space-y-1"><Label htmlFor="p-contact">Contacto</Label><Input id="p-contact" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} /></div>
             <div className="space-y-1">
               <Label htmlFor="p-type">Tipo</Label>
               <select id="p-type" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
                 {PROVIDER_TYPES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
+              <FieldError message={fieldErrors.type} />
             </div>
-            <div className="space-y-1"><Label htmlFor="p-phone">Teléfono *</Label><Input id="p-phone" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div className="space-y-1"><Label htmlFor="p-email">Correo</Label><Input id="p-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+            <div className="space-y-1"><Label htmlFor="p-phone">Teléfono *</Label><Input id="p-phone" required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /><FieldError message={fieldErrors.phone} /></div>
+            <div className="space-y-1"><Label htmlFor="p-email">Correo</Label><Input id="p-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /><FieldError message={fieldErrors.email} /></div>
             <div className="space-y-1"><Label htmlFor="p-tax">RIF / Documento</Label><Input id="p-tax" value={form.taxId} onChange={(e) => setForm({ ...form, taxId: e.target.value })} /></div>
             <div className="space-y-1"><Label htmlFor="p-specialty">Especialidad</Label><Input id="p-specialty" value={form.specialty} onChange={(e) => setForm({ ...form, specialty: e.target.value })} placeholder="Plomería, electricidad..." /></div>
             <div className="space-y-1"><Label htmlFor="p-rating">Calificación (1-5)</Label><Input id="p-rating" type="number" min="1" max="5" value={form.rating} onChange={(e) => setForm({ ...form, rating: e.target.value })} /></div>

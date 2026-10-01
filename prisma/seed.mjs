@@ -1,12 +1,21 @@
 import "dotenv/config";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
 
 async function main() {
+  if (process.env.NODE_ENV === "production" && process.env.SEED_ALLOW_RESET !== "true") {
+    console.error(
+      "Seed abortado: se ejecutó en producción y el seed reinicia datos.\n" +
+        "Define SEED_ALLOW_RESET=true si realmente deseas vaciar y resembrar la base.",
+    );
+    process.exit(1);
+  }
+
   await prisma.task.deleteMany();
   await prisma.maintenancePlan.deleteMany();
   await prisma.asset.deleteMany();
@@ -26,12 +35,36 @@ async function main() {
   await prisma.clientProfile.deleteMany();
   await prisma.user.deleteMany();
 
+  const passwordHash = await bcrypt.hash(process.env.SEED_ADMIN_PASSWORD || "admin123", 10);
+
   const admin = await prisma.user.create({
     data: {
       email: "admin@tuinmobiliaria.com",
       fullName: "Administrador",
       role: "ADMIN",
       status: "ACTIVE",
+      passwordHash,
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      email: "agente@tuinmobiliaria.com",
+      fullName: "Agente Comercial",
+      role: "AGENT",
+      status: "ACTIVE",
+      passwordHash,
+    },
+  });
+
+  const demoPasswordHash = await bcrypt.hash(process.env.SEED_DEMO_PASSWORD || "hola1234", 10);
+  await prisma.user.create({
+    data: {
+      email: "reybellorin82@gmail.com",
+      fullName: "Rey Bellorin",
+      role: "ADMIN",
+      status: "ACTIVE",
+      passwordHash: demoPasswordHash,
     },
   });
 
@@ -206,6 +239,133 @@ async function main() {
       clientId: tenant.id,
       notes: "Apartado de fechas de ejemplo",
       createdById: admin.id,
+    },
+  });
+
+  await prisma.propertyIssue.create({
+    data: {
+      propertyId: property.id,
+      clientId: tenant.id,
+      issueType: "Fuga de agua en el baño",
+      description: "El grifo del lavamanos gotea constantemente.",
+      status: "RESOLVED",
+      reportedByType: "CLIENT",
+      providerId: provider.id,
+      repairDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      repairDetails: "Se reemplazó el cartucho del grifo y se selló la conexión.",
+      repairCost: new Prisma.Decimal(45),
+      createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  await prisma.propertyIssue.create({
+    data: {
+      propertyId: property.id,
+      clientId: tenant.id,
+      issueType: "Aire acondicionado no enfría",
+      description: "El equipo enciende pero no enfría correctamente.",
+      status: "IN_PROGRESS",
+      reportedByType: "CLIENT",
+      providerId: provider.id,
+      repairCost: new Prisma.Decimal(0),
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  await prisma.entityDocument.createMany({
+    data: [
+      {
+        entityType: "OWNER",
+        clientId: owner.id,
+        documentName: "Documento de identidad del propietario.pdf",
+        fileUrl: "https://example.com/docs/owner-id.pdf",
+      },
+      {
+        entityType: "TENANT",
+        clientId: tenant.id,
+        documentName: "Comprobante de ingresos del inquilino.pdf",
+        fileUrl: "https://example.com/docs/tenant-income.pdf",
+      },
+      {
+        entityType: "PROPERTY",
+        propertyId: property.id,
+        documentName: "Reglamento de condominio.pdf",
+        fileUrl: "https://example.com/docs/condo-rules.pdf",
+      },
+    ],
+  });
+
+  const soonTenant = await prisma.clientProfile.create({
+    data: {
+      fullName: "Inquilino Por Vencer",
+      legalDocumentId: "TENANT-0002",
+      phone: "555-0005",
+      email: "por.vencer@example.com",
+      role: "TENANT",
+      status: "ACTIVE",
+    },
+  });
+
+  const soonProperty = await prisma.property.create({
+    data: {
+      code: "PROP-0002",
+      ownerId: owner.id,
+      title: "Casa de prueba con vencimiento próximo",
+      address: "Avenida Siempre Viva 742",
+      city: "Ciudad de Prueba",
+      propertyType: "HOUSE",
+      status: "RENTED",
+    },
+  });
+
+  const soonLease = await prisma.lease.create({
+    data: {
+      propertyId: soonProperty.id,
+      contractNumber: "LEASE-0002",
+      startDate: new Date(Date.now() - 350 * 24 * 60 * 60 * 1000),
+      endDate: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
+      monthlyCanonAmount: new Prisma.Decimal(1200),
+      currency: "USD",
+      contractStatus: "ACTIVE",
+      renewalMode: "MANUAL",
+      renewalNoticeDays: 30,
+      leaseClients: { create: { clientId: soonTenant.id, role: "TENANT" } },
+      guarantors: {
+        create: {
+          fullName: "Fiador Por Vencer",
+          legalDocumentId: "GUARANTOR-0002",
+          phone: "555-0006",
+        },
+      },
+      signature: {
+        create: { provider: "LOCAL", method: "ELECTRONIC", status: "SIGNED", signedBy: "Inquilino Por Vencer", signedAt: new Date(Date.now() - 350 * 24 * 60 * 60 * 1000) },
+      },
+    },
+  });
+
+  await prisma.leaseProposalAndNotice.create({
+    data: {
+      leaseId: soonLease.id,
+      noticeType: "RENOVATION_PROPOSAL",
+      recipientType: "TENANT",
+      status: "SENT",
+      sentAt: new Date(),
+      title: "Propuesta de renovación",
+      body: "Le proponemos renovar el contrato por un nuevo período con un ajuste del canon.",
+      proposedCanonAmount: new Prisma.Decimal(1320),
+      proposedStartDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000),
+      proposedEndDate: new Date(Date.now() + 386 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  await prisma.leaseProposalAndNotice.create({
+    data: {
+      leaseId: soonLease.id,
+      noticeType: "OWNER_NOTICE",
+      recipientType: "OWNER",
+      status: "DRAFT",
+      title: "Notificación de vencimiento al propietario",
+      body: "Le informamos que el contrato de su inmueble está próximo a vencer y gestionamos su renovación.",
     },
   });
 

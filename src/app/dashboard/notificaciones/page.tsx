@@ -29,9 +29,11 @@ import {
   Building2,
   User,
   ShieldAlert,
+  Mail,
 } from "lucide-react";
 import { formatDate, formatCurrency, calculateDaysUntil } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 interface ExpiringLease {
   id: string;
@@ -201,7 +203,7 @@ export default function NotificationsPage() {
         fetchNotices();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al crear", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al crear").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -251,6 +253,21 @@ export default function NotificationsPage() {
         fetchNotices();
       } else {
         toast({ title: "Error", description: "No se pudo actualizar", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
+    }
+  };
+
+  const sendByEmail = async (id: string) => {
+    try {
+      const response = await fetch(`/api/notices/${id}/send`, { method: "POST" });
+      const result = await response.json();
+      if (response.ok) {
+        toast({ title: "Enviado", description: `Carta enviada a ${result.to}` });
+        fetchNotices();
+      } else {
+        toast({ title: "No enviado", description: getApiError(result, "No se pudo enviar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -415,6 +432,10 @@ export default function NotificationsPage() {
                     <Button variant="outline" size="sm" onClick={() => window.open(`/api/notices/${notice.id}/letter`, "_blank")}>
                       <FileText className="h-4 w-4 mr-2" />
                       Descargar carta
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => sendByEmail(notice.id)}>
+                      <Mail className="h-4 w-4 mr-2" />
+                      Enviar por correo
                     </Button>
                     {notice.status !== "SENT" && (
                       <Button variant="outline" size="sm" onClick={() => markAsSent(notice.id)}>

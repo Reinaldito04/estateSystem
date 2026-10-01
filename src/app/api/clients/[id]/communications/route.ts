@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const communicationSchema = z.object({
   channel: z.enum(["EMAIL", "SMS", "CALL", "WHATSAPP", "MESSAGE", "FORMAL_REQUEST"]),
@@ -37,7 +38,7 @@ export async function POST(
     return NextResponse.json(communication, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating client communication:", error);
     return NextResponse.json({ error: "Error al crear la comunicación" }, { status: 500 });

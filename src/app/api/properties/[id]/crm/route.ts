@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { interestStatusToUi, toInterestStatus } from "@/lib/enum-mapping";
 
 const crmRecordSchema = z.discriminatedUnion("type", [
@@ -88,7 +89,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ ...interest, status: interestStatusToUi(interest.status) });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error updating property interest:", error);
     return NextResponse.json({ error: "Error al actualizar el interesado" }, { status: 500 });
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating property CRM record:", error);
     return NextResponse.json({ error: "Error al guardar el registro" }, { status: 500 });
@@ -162,7 +163,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error deleting property CRM record:", error);
     return NextResponse.json({ error: "Error al eliminar el registro" }, { status: 500 });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const signatureSchema = z.object({
   mode: z.enum(["LOCAL", "EXTERNAL"]).default("EXTERNAL"),
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     return NextResponse.json({ error: "No se pudo registrar el evento de firma" }, { status: 500 });
   }
 }

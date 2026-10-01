@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const FREQUENCIES = ["ONCE", "DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL"] as const;
 const CATEGORIES = ["REVIEW", "MAINTENANCE", "PAYMENT", "CONTRACT", "VISIT", "OTHER"] as const;
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     await recordAudit({ entityType: "MaintenancePlan", entityId: plan.id, action: "CREATE", changes: { title: plan.title }, request });
     return NextResponse.json({ plan, task }, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error creating maintenance plan:", error);
     return NextResponse.json({ error: "Error al crear plan" }, { status: 500 });
   }

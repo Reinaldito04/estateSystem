@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const riskDocumentSchema = z.object({
   documentType: z.enum(["INCOME_PROOF", "PERSONAL_REFERENCE", "LABOR_REFERENCE", "CREDIT_REPORT"]),
@@ -52,7 +53,7 @@ export async function POST(
     return NextResponse.json(document, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating client document:", error);
     return NextResponse.json({ error: "Error al crear el documento" }, { status: 500 });

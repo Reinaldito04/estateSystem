@@ -42,6 +42,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, calculateDaysUntil } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 interface Lease {
   id: string;
@@ -235,7 +236,7 @@ export default function LeasesPage() {
         fetchLeases();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al guardar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al guardar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -284,7 +285,7 @@ export default function LeasesPage() {
         fetchLeases();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al eliminar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al eliminar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });

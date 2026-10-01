@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { clientStatusToUi, toClientStatus } from "@/lib/enum-mapping";
 
 const clientUpdateSchema = z.object({
@@ -152,7 +153,7 @@ export async function PUT(
     return NextResponse.json({ ...client, status: clientStatusToUi(client.status) });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error updating client:", error);
     return NextResponse.json({ error: "Error al actualizar cliente" }, { status: 500 });

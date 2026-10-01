@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldError } from "@/components/ui/field-error";
 import {
   Table,
   TableBody,
@@ -47,6 +48,7 @@ import {
   PAYMENT_STATUSES,
 } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 interface Transaction {
   id: string;
@@ -117,6 +119,7 @@ export default function TransactionsPage() {
     description: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   const fetchTransactions = async () => {
@@ -187,6 +190,7 @@ export default function TransactionsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setFieldErrors({});
     try {
       const url = editingTransaction ? `/api/transactions/${editingTransaction.id}` : "/api/transactions";
       const method = editingTransaction ? "PUT" : "POST";
@@ -210,7 +214,9 @@ export default function TransactionsPage() {
         fetchTransactions();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al guardar", variant: "destructive" });
+        const parsed = getApiError(error, "Error al guardar");
+        setFieldErrors(parsed.fields);
+        toast({ title: "Error", description: parsed.message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -247,7 +253,7 @@ export default function TransactionsPage() {
         fetchTransactions();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al eliminar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al eliminar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -351,6 +357,7 @@ export default function TransactionsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError message={fieldErrors.propertyId} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="leaseId">Contrato (opcional)</Label>
@@ -377,6 +384,7 @@ export default function TransactionsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError message={fieldErrors.category} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="amount">Monto *</Label>
@@ -389,6 +397,7 @@ export default function TransactionsPage() {
                     required
                     placeholder="850"
                   />
+                  <FieldError message={fieldErrors.amount} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="currency">Moneda</Label>
@@ -434,6 +443,7 @@ export default function TransactionsPage() {
                     onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
                     required
                   />
+                  <FieldError message={fieldErrors.paymentDate} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="paymentMethod">Método de Pago *</Label>
@@ -447,6 +457,7 @@ export default function TransactionsPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError message={fieldErrors.paymentMethod} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="referenceNumber">Número de Referencia</Label>

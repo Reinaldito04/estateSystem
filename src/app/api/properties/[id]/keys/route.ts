@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const keySchema = z.object({
   holderName: z.string().min(1, "Responsable es requerido"),
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const key = await prisma.propertyKey.create({ data: { ...body, propertyId: id } });
     return NextResponse.json(key, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     return NextResponse.json({ error: "Error al registrar llaves" }, { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const ENTITY_FIELD = {
   OWNER: "clientId",
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(withEntityId(document), { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating document:", error);
     return NextResponse.json({ error: "Error al crear documento" }, { status: 500 });

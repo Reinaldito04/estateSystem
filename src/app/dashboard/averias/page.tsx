@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldError } from "@/components/ui/field-error";
 import {
   Table,
   TableBody,
@@ -44,6 +45,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, ISSUE_STATUSES } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 interface Issue {
   id: string;
@@ -57,6 +59,7 @@ interface Issue {
   receiptUrl: string | null;
   property: { id: string; code: string; title: string };
   tenant: { id: string; fullName: string; phone: string } | null;
+  provider: { id: string; companyName: string } | null;
   reportedByType: string;
   createdAt: string;
 }
@@ -83,6 +86,7 @@ export default function IssuesPage() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [providers, setProviders] = useState<{ id: string; companyName: string }[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -103,12 +107,14 @@ export default function IssuesPage() {
     status: "REPORTED",
     reportDate: "",
     reportedByType: "CLIENT",
+    providerId: "",
     repairDate: "",
     repairDetails: "",
     repairCost: "",
     receiptUrl: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   const fetchIssues = async () => {
@@ -167,11 +173,16 @@ export default function IssuesPage() {
   useEffect(() => {
     fetchProperties();
     fetchTenants();
+    fetch("/api/providers?active=true")
+      .then((response) => (response.ok ? response.json() : { data: [] }))
+      .then((result) => setProviders(result.data ?? []))
+      .catch(() => setProviders([]));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setFieldErrors({});
     try {
       const url = editingIssue ? `/api/issues/${editingIssue.id}` : "/api/issues";
       const method = editingIssue ? "PUT" : "POST";
@@ -181,6 +192,7 @@ export default function IssuesPage() {
         body: JSON.stringify({
           ...formData,
           tenantId: formData.tenantId || null,
+          providerId: formData.providerId || null,
           repairCost: parseFloat(formData.repairCost) || 0,
           reportDate: formData.reportDate || null,
           repairDate: formData.repairDate || null,
@@ -196,7 +208,9 @@ export default function IssuesPage() {
         fetchIssues();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al guardar", variant: "destructive" });
+        const parsed = getApiError(error, "Error al guardar");
+        setFieldErrors(parsed.fields);
+        toast({ title: "Error", description: parsed.message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -215,6 +229,7 @@ export default function IssuesPage() {
       status: issue.status,
       reportDate: issue.reportDate ? issue.reportDate.split("T")[0] : "",
       reportedByType: issue.reportedByType || "CLIENT",
+      providerId: issue.provider?.id || "",
       repairDate: issue.repairDate ? issue.repairDate.split("T")[0] : "",
       repairDetails: issue.repairDetails || "",
       repairCost: issue.repairCost,
@@ -232,7 +247,7 @@ export default function IssuesPage() {
         fetchIssues();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al eliminar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al eliminar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -249,6 +264,7 @@ export default function IssuesPage() {
       status: "REPORTED",
       reportDate: "",
       reportedByType: "CLIENT",
+      providerId: "",
       repairDate: "",
       repairDetails: "",
       repairCost: "",
@@ -332,6 +348,7 @@ export default function IssuesPage() {
                     required
                     placeholder="Plomería, Electricidad, etc."
                   />
+                  <FieldError message={fieldErrors.issueType} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="status">Estado</Label>
@@ -369,6 +386,20 @@ export default function IssuesPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="providerId">Proveedor asignado</Label>
+                  <Select value={formData.providerId || "none"} onValueChange={(v) => setFormData({ ...formData, providerId: v === "none" ? "" : v })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Sin proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin proveedor</SelectItem>
+                      {providers.map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>{provider.companyName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="description">Descripción *</Label>
                   <Input
@@ -378,6 +409,7 @@ export default function IssuesPage() {
                     required
                     placeholder="Describir la avería reportada..."
                   />
+                  <FieldError message={fieldErrors.description} />
                 </div>
               </div>
 
@@ -403,6 +435,7 @@ export default function IssuesPage() {
                       onChange={(e) => setFormData({ ...formData, repairCost: e.target.value })}
                       placeholder="0"
                     />
+                    <FieldError message={fieldErrors.repairCost} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="repairDetails">Detalles de la Solución</Label>

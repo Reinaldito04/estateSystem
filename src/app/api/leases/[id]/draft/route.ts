@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_LEASE_TEMPLATE, renderLeaseTemplate } from "@/lib/contract-templates";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const draftSchema = z.object({ templateId: z.string().optional() });
 
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const updated = await prisma.lease.update({ where: { id }, data: { templateId: template.id === DEFAULT_LEASE_TEMPLATE.id ? null : template.id, draftContent, contractStatus: "PENDING_SIGNATURE" } });
     return NextResponse.json({ draftContent, contractStatus: updated.contractStatus, template: { id: template.id, name: template.name } });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     return NextResponse.json({ error: "No se pudo generar el borrador" }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const updateSchema = z.object({
   companyName: z.string().min(1).optional(),
@@ -50,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await recordAudit({ entityType: "ServiceProvider", entityId: id, action: "UPDATE", changes: data, request });
     return NextResponse.json(provider);
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error updating provider:", error);
     return NextResponse.json({ error: "Error al actualizar proveedor" }, { status: 500 });
   }

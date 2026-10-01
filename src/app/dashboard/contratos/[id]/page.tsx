@@ -36,6 +36,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatCurrency, formatDate, calculateDaysUntil, PAYMENT_CATEGORIES } from "@/lib/utils";
+import { getApiError } from "@/lib/api-error";
 
 interface Lease {
   id: string;
@@ -162,7 +163,7 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const response = await fetch(`/api/leases/${lease.id}/draft`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ templateId: selectedTemplate }) });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo generar el borrador");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo generar el borrador").message);
       setLease({ ...lease, draftContent: result.draftContent, contractStatus: result.contractStatus, template: { id: result.template.id, name: result.template.name, contractType: "LEASE" } });
     } catch (error) {
       console.error(error);
@@ -183,7 +184,7 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
       const signatureData = signatureCanvasRef.current.toDataURL("image/png");
       const response = await fetch(`/api/leases/${lease.id}/signature`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "LOCAL", provider: "LOCAL", eventType: "SIGN", status: "SIGNED", signerName: localSigner.name, signerRole: localSigner.role, acceptTerms: localSigner.acceptTerms, signatureData }) });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo firmar localmente");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo firmar localmente").message);
       setLease({ ...lease, signatureStatus: "SIGNED", signatureMethod: "LOCAL_CANVAS_SHA256", signatureData, signedBy: result.signedBy, signatureHash: result.signatureHash, signatureConsentAt: result.signedAt, signedAt: result.signedAt, signedIp: result.ipAddress || lease.signedIp, contractStatus: "ACTIVE", signatureEvents: [result, ...lease.signatureEvents] });
       setIsLocalSignatureOpen(false);
       setLocalSigner({ name: "", role: "", acceptTerms: false });

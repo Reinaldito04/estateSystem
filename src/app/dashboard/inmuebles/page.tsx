@@ -38,6 +38,7 @@ import {
   Check,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { FieldError } from "@/components/ui/field-error";
 import { LocationPicker } from "@/components/properties/location-picker";
 import { PropertyPortfolioMap, type PropertyMapPoint } from "@/components/properties/property-visuals";
 import {
@@ -48,6 +49,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getApiError } from "@/lib/api-error";
 
 interface Property {
   id: string;
@@ -182,6 +184,7 @@ export default function PropertiesPage() {
     status: "available",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [creationStep, setCreationStep] = useState(0);
   const [customFieldDrafts, setCustomFieldDrafts] = useState<CustomFieldDraft[]>([]);
   const { toast } = useToast();
@@ -247,7 +250,7 @@ export default function PropertiesPage() {
     fetch("/api/properties/locations")
       .then(async (response) => {
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Error al cargar ubicaciones");
+        if (!response.ok) throw new Error(getApiError(result, "Error al cargar ubicaciones").message);
         return result as { data: PropertyMapPoint[]; totalProperties: number };
       })
       .then((result) => {
@@ -282,6 +285,7 @@ export default function PropertiesPage() {
     }
 
     setIsSubmitting(true);
+    setFieldErrors({});
     try {
       const url = editingProperty ? `/api/properties/${editingProperty.id}` : "/api/properties";
       const method = editingProperty ? "PUT" : "POST";
@@ -317,7 +321,9 @@ export default function PropertiesPage() {
         else router.push(`/dashboard/inmuebles/${savedProperty.id}`);
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al guardar", variant: "destructive" });
+        const parsed = getApiError(error, "Error al guardar");
+        setFieldErrors(parsed.fields);
+        toast({ title: "Error", description: parsed.message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -380,7 +386,7 @@ export default function PropertiesPage() {
         fetchProperties();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al eliminar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al eliminar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -438,10 +444,24 @@ export default function PropertiesPage() {
   };
 
   const goToNextStep = () => {
-    if (creationStep === 0 && (!formData.code.trim() || !formData.ownerId || !formData.title.trim() || !formData.address.trim() || !formData.city.trim())) {
-      toast({ title: "Completa los datos básicos", description: "Código, propietario, título, dirección y ciudad son obligatorios.", variant: "destructive" });
-      return;
+    if (creationStep === 0) {
+      const missing: Record<string, string> = {};
+      if (!formData.code.trim()) missing.code = "El código es obligatorio";
+      if (!formData.ownerId) missing.ownerId = "Selecciona un propietario";
+      if (!formData.title.trim()) missing.title = "El título es obligatorio";
+      if (!formData.address.trim()) missing.address = "La dirección es obligatoria";
+      if (!formData.city.trim()) missing.city = "La ciudad es obligatoria";
+      if (Object.keys(missing).length > 0) {
+        setFieldErrors(missing);
+        toast({
+          title: "Faltan datos obligatorios",
+          description: Object.values(missing).join(" · "),
+          variant: "destructive",
+        });
+        return;
+      }
     }
+    setFieldErrors({});
     setCreationStep((step) => Math.min(step + 1, PROPERTY_FORM_STEPS.length - 1));
   };
 
@@ -499,6 +519,7 @@ export default function PropertiesPage() {
                     required
                     placeholder="C-001"
                   />
+                  <FieldError message={fieldErrors.code} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerId">Propietario *</Label>
@@ -512,6 +533,7 @@ export default function PropertiesPage() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError message={fieldErrors.ownerId} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="title">Título *</Label>
@@ -522,6 +544,7 @@ export default function PropertiesPage() {
                     required
                     placeholder="Apartamento en La Lagunita"
                   />
+                  <FieldError message={fieldErrors.title} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="address">Dirección *</Label>
@@ -532,6 +555,7 @@ export default function PropertiesPage() {
                     required
                     placeholder="Calle, urbanización, sector"
                   />
+                  <FieldError message={fieldErrors.address} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="city">Ciudad *</Label>
@@ -542,6 +566,7 @@ export default function PropertiesPage() {
                     required
                     placeholder="Caracas"
                   />
+                  <FieldError message={fieldErrors.city} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="propertyType">Tipo de inmueble *</Label>

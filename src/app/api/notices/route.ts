@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const noticeSchema = z.object({
   leaseId: z.string().uuid("ID de contrato es requerido"),
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating notice:", error);
     return NextResponse.json({ error: "Error al crear notificación" }, { status: 500 });

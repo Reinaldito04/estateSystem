@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { removePropertyFile, storePropertyFile, isValidPropertyId } from "@/lib/property-file-storage";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 export const runtime = "nodejs";
 
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       await removePropertyFile(storedFile.propertyId, storedFile.filename).catch(() => undefined);
     }
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error uploading property media:", error);
     return NextResponse.json({ error: "Error al guardar el archivo" }, { status: 500 });

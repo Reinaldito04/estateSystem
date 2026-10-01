@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const FREQUENCIES = ["ONCE", "DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL"] as const;
 const CATEGORIES = ["REVIEW", "MAINTENANCE", "PAYMENT", "CONTRACT", "VISIT", "OTHER"] as const;
@@ -34,7 +35,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await recordAudit({ entityType: "MaintenancePlan", entityId: id, action: "UPDATE", changes: data, request });
     return NextResponse.json(plan);
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error updating maintenance plan:", error);
     return NextResponse.json({ error: "Error al actualizar plan" }, { status: 500 });
   }

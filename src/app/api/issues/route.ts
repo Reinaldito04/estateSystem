@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import { recordAudit } from "@/lib/audit";
+import { optionalDate } from "@/lib/schemas";
 
 const issueSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
@@ -10,13 +13,13 @@ const issueSchema = z.object({
   issueType: z.string().min(1, "Tipo de avería es requerido"),
   description: z.string().min(1, "Descripción es requerida"),
   status: z.enum(["REPORTED", "IN_PROGRESS", "RESOLVED", "CANCELLED"]).default("REPORTED"),
-  reportDate: z.string().transform((s) => new Date(s)).optional().nullable(),
+  reportDate: optionalDate(),
   reportedByType: z.enum(["CLIENT", "OWNER", "USER", "SYSTEM"]).default("CLIENT"),
   reportedByUserId: z.string().uuid().optional().nullable(),
   providerId: z.string().uuid().optional().nullable(),
-  repairDate: z.string().transform((s) => new Date(s)).optional().nullable(),
+  repairDate: optionalDate(),
   repairDetails: z.string().optional(),
-  repairCost: z.number().min(0).default(0),
+  repairCost: z.number().min(0, "El costo no puede ser negativo").default(0),
   receiptUrl: z.string().optional(),
 });
 
@@ -55,6 +58,7 @@ export async function GET(request: NextRequest) {
         include: {
           property: { select: { id: true, code: true, title: true } },
           client: { select: { id: true, fullName: true, phone: true } },
+          provider: { select: { id: true, companyName: true } },
         },
       }),
       prisma.propertyIssue.count({ where }),
@@ -99,13 +103,15 @@ export async function POST(request: NextRequest) {
       include: {
         property: { select: { id: true, code: true, title: true } },
         client: { select: { id: true, fullName: true, phone: true } },
+        provider: { select: { id: true, companyName: true } },
       },
     });
 
+    await recordAudit({ entityType: "PropertyIssue", entityId: issue.id, action: "CREATE", changes: { issueType: issue.issueType }, request });
     return NextResponse.json({ ...issue, tenant: issue.client }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating issue:", error);
     return NextResponse.json({ error: "Error al crear avería" }, { status: 500 });

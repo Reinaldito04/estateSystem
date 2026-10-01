@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, PAYMENT_CATEGORIES } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 const INCOME_CATEGORIES = ["RENT_CANON", "RESERVATION", "SECURITY_DEPOSIT", "CONTRACT_FEE"];
 const EXPENSE_CATEGORIES = ["CONDO_FEE", "ELECTRICITY", "INTERNET", "OTHER_SERVICE"];
@@ -89,6 +90,18 @@ interface StatementData {
 
 type Scope = "PROPERTY" | "OWNER" | "TENANT";
 
+type SavedStatement = {
+  id: string;
+  audience: string;
+  propertyId: string | null;
+  clientId: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  createdAt: string;
+  property: { id: string; code: string; title: string } | null;
+  client: { id: string; fullName: string } | null;
+};
+
 export default function AccountStatementsPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [owners, setOwners] = useState<{ id: string; fullName: string }[]>([]);
@@ -100,27 +113,35 @@ export default function AccountStatementsPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [statement, setStatement] = useState<StatementData | null>(null);
+  const [savedStatements, setSavedStatements] = useState<SavedStatement[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const fetchData = async () => {
-    try {
-      const [propertiesResponse, ownersResponse, tenantsResponse] = await Promise.all([
-        fetch("/api/properties?limit=100"),
-        fetch("/api/owners?limit=100"),
-        fetch("/api/clients?role=TENANT&limit=100"),
-      ]);
-      if (propertiesResponse.ok) setProperties((await propertiesResponse.json()).data);
-      if (ownersResponse.ok) setOwners((await ownersResponse.json()).data);
-      if (tenantsResponse.ok) setTenants((await tenantsResponse.json()).data);
-    } catch {
-      console.error("Error fetching data");
-    }
-  };
-
   useEffect(() => {
-    fetchData();
+    let isCurrent = true;
+    Promise.all([
+      fetch("/api/properties?limit=100").then((r) => (r.ok ? r.json() : { data: [] })),
+      fetch("/api/owners?limit=100").then((r) => (r.ok ? r.json() : { data: [] })),
+      fetch("/api/clients?role=TENANT&limit=100").then((r) => (r.ok ? r.json() : { data: [] })),
+      fetch("/api/account-statements/history").then((r) => (r.ok ? r.json() : { data: [] })),
+    ])
+      .then(([propertiesResult, ownersResult, tenantsResult, savedResult]) => {
+        if (!isCurrent) return;
+        setProperties(propertiesResult.data ?? []);
+        setOwners(ownersResult.data ?? []);
+        setTenants(tenantsResult.data ?? []);
+        setSavedStatements(savedResult.data ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      isCurrent = false;
+    };
   }, []);
+
+  const loadSaved = async () => {
+    const response = await fetch("/api/account-statements/history");
+    if (response.ok) setSavedStatements((await response.json()).data);
+  };
 
   const buildParams = () => {
     const params = new URLSearchParams();
@@ -146,7 +167,7 @@ export default function AccountStatementsPage() {
         setStatement(await response.json());
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al generar estado de cuenta", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al generar estado de cuenta").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
@@ -176,12 +197,44 @@ export default function AccountStatementsPage() {
       });
       if (response.ok) {
         toast({ title: "Guardado", description: "Estado de cuenta registrado correctamente" });
+        loadSaved();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "No se pudo guardar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "No se pudo guardar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
+    }
+  };
+
+  const openSaved = async (saved: SavedStatement) => {
+    const params = new URLSearchParams();
+    if (saved.propertyId) {
+      setScope("PROPERTY");
+      setPropertyId(saved.propertyId);
+      params.set("propertyId", saved.propertyId);
+    } else if (saved.audience === "TENANT" && saved.clientId) {
+      setScope("TENANT");
+      setTenantId(saved.clientId);
+      params.set("tenantId", saved.clientId);
+    } else if (saved.clientId) {
+      setScope("OWNER");
+      setOwnerId(saved.clientId);
+      params.set("ownerId", saved.clientId);
+    }
+    const start = saved.periodStart ? saved.periodStart.slice(0, 10) : "";
+    const end = saved.periodEnd ? saved.periodEnd.slice(0, 10) : "";
+    setStartDate(start);
+    setEndDate(end);
+    if (start) params.set("startDate", start);
+    if (end) params.set("endDate", end);
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/account-statements?${params}`);
+      if (response.ok) setStatement(await response.json());
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -281,6 +334,33 @@ export default function AccountStatementsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {savedStatements.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Estados guardados</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {savedStatements.map((saved) => (
+                <div key={saved.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {saved.property ? `${saved.property.code} · ${saved.property.title}` : saved.client?.fullName || "General"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {saved.audience === "TENANT" ? "Inquilino" : "Propietario"} · {saved.periodStart ? formatDate(saved.periodStart) : "inicio"} a {saved.periodEnd ? formatDate(saved.periodEnd) : "hoy"} · {formatDate(saved.createdAt)}
+                    </p>
+                  </div>
+                  <Button type="button" size="sm" variant="outline" onClick={() => openSaved(saved)}>
+                    Abrir
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {statement && (
         <>

@@ -1,26 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import { requiredDate, optionalDate, spanishEnum } from "@/lib/schemas";
 
 const transactionSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
   leaseId: z.string().uuid().optional().nullable(),
-  category: z.enum([
-    "RENT_CANON",
-    "RESERVATION",
-    "SECURITY_DEPOSIT",
-    "CONTRACT_FEE",
-    "CONDO_FEE",
-    "ELECTRICITY",
-    "INTERNET",
-    "OTHER_SERVICE",
-  ]),
+  category: spanishEnum(
+    [
+      "RENT_CANON",
+      "RESERVATION",
+      "SECURITY_DEPOSIT",
+      "CONTRACT_FEE",
+      "CONDO_FEE",
+      "ELECTRICITY",
+      "INTERNET",
+      "OTHER_SERVICE",
+    ],
+    "Selecciona una categoría válida",
+  ),
   amount: z.number().positive("Monto debe ser positivo"),
   currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).default("USD"),
   status: z.enum(["PENDING", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]).default("PAID"),
-  paymentDate: z.string().transform((s) => new Date(s)),
-  dueDate: z.string().transform((s) => new Date(s)).optional().nullable(),
+  paymentDate: requiredDate("La fecha de pago es requerida"),
+  dueDate: optionalDate(),
   paymentMethod: z.string().min(1, "Método de pago es requerido"),
   referenceNumber: z.string().optional(),
   receiptUrl: z.string().optional(),
@@ -112,6 +117,7 @@ export async function POST(request: NextRequest) {
     const transaction = await prisma.transaction.create({
       data: {
         ...validatedData,
+        category: validatedData.category as Prisma.TransactionCreateInput["category"],
         amount: new Prisma.Decimal(validatedData.amount),
       },
       include: {
@@ -123,7 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(transaction, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating transaction:", error);
     return NextResponse.json({ error: "Error al crear transacción" }, { status: 500 });

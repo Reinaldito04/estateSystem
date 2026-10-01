@@ -1,26 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import { requiredDate, optionalDate, spanishEnum } from "@/lib/schemas";
 
 const transactionUpdateSchema = z.object({
   propertyId: z.string().uuid().optional(),
   leaseId: z.string().uuid().optional().nullable(),
-  category: z.enum([
-    "RENT_CANON",
-    "RESERVATION",
-    "SECURITY_DEPOSIT",
-    "CONTRACT_FEE",
-    "CONDO_FEE",
-    "ELECTRICITY",
-    "INTERNET",
-    "OTHER_SERVICE",
-  ]).optional(),
-  amount: z.number().positive().optional(),
+  category: spanishEnum(
+    [
+      "RENT_CANON",
+      "RESERVATION",
+      "SECURITY_DEPOSIT",
+      "CONTRACT_FEE",
+      "CONDO_FEE",
+      "ELECTRICITY",
+      "INTERNET",
+      "OTHER_SERVICE",
+    ],
+    "Selecciona una categoría válida",
+  ).optional(),
+  amount: z.number().positive("Monto debe ser positivo").optional(),
   currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).optional(),
   status: z.enum(["PENDING", "PAID", "OVERDUE", "CANCELLED", "REFUNDED"]).optional(),
-  paymentDate: z.string().transform((s) => new Date(s)).optional(),
-  dueDate: z.string().transform((s) => new Date(s)).optional().nullable(),
+  paymentDate: requiredDate("La fecha de pago es requerida").optional(),
+  dueDate: optionalDate(),
   paymentMethod: z.string().min(1).optional(),
   referenceNumber: z.string().optional(),
   receiptUrl: z.string().optional(),
@@ -64,11 +69,12 @@ export async function PUT(
 
     const updateData: Prisma.TransactionUpdateInput = {
       ...rest,
+      ...(rest.category !== undefined && { category: rest.category as Prisma.TransactionUpdateInput["category"] }),
       ...(leaseId !== undefined && {
         lease: leaseId ? { connect: { id: leaseId } } : { disconnect: true },
       }),
       ...(dueDate !== undefined && { dueDate }),
-    };
+    } as Prisma.TransactionUpdateInput;
     if (amount !== undefined) {
       updateData.amount = new Prisma.Decimal(amount);
     }
@@ -85,7 +91,7 @@ export async function PUT(
     return NextResponse.json(transaction);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error updating transaction:", error);
     return NextResponse.json({ error: "Error al actualizar transacción" }, { status: 500 });

@@ -71,6 +71,7 @@ export async function buildAccountStatement(params: AccountStatementParams) {
   const issues = await prisma.propertyIssue.findMany({
     where: {
       propertyId: propertyId ?? { in: propertyIds },
+      ...(tenantId && { clientId: tenantId }),
       ...(dateFilter && { reportDate: dateFilter }),
     },
     include: { property: { select: { id: true, code: true, title: true } } },

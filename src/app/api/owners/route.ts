@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const ownerSchema = z.object({
   fullName: z.string().min(1, "Nombre completo es requerido"),
@@ -129,7 +130,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(toOwner(owner), { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating owner:", error);
     return NextResponse.json({ error: "Error al crear propietario" }, { status: 500 });

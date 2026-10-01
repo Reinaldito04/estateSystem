@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const keyUpdateSchema = z.object({
   returnedAt: z.string().transform((value) => new Date(value)).nullable().optional(),
@@ -15,7 +16,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (key.count === 0) return NextResponse.json({ error: "Registro de llaves no encontrado" }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     return NextResponse.json({ error: "Error al actualizar llaves" }, { status: 500 });
   }
 }

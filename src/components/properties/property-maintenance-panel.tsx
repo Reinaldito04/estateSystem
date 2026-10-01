@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Wrench, Plus, CheckCircle2 } from "lucide-react";
+import { Wrench, Plus, CheckCircle2, XCircle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { RECURRENCE_OPTIONS, TASK_CATEGORIES, TASK_STATUSES, labelOf } from "@/lib/management";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 type Task = {
   id: string;
@@ -115,7 +116,7 @@ export function PropertyMaintenancePanel({ propertyId }: { propertyId: string })
         fetchData();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "No se pudo crear el plan", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "No se pudo crear el plan").message, variant: "destructive" });
       }
     } finally {
       setIsSubmitting(false);
@@ -129,6 +130,13 @@ export function PropertyMaintenancePanel({ propertyId }: { propertyId: string })
       body: JSON.stringify({ status: "DONE" }),
     });
     toast({ title: "Tarea completada", description: "Se programó el siguiente mantenimiento si aplica" });
+    fetchData();
+  };
+
+  const deactivatePlan = async (planId: string) => {
+    if (!confirm("¿Desactivar este plan de mantenimiento?")) return;
+    await fetch(`/api/maintenance-plans/${planId}`, { method: "DELETE" });
+    toast({ title: "Plan desactivado" });
     fetchData();
   };
 
@@ -220,6 +228,11 @@ export function PropertyMaintenancePanel({ propertyId }: { propertyId: string })
                     </p>
                   </div>
                   <span className="text-xs text-muted-foreground">{plan._count.tasks} tareas</span>
+                  {plan.isActive && (
+                    <Button type="button" size="sm" variant="ghost" className="text-destructive" onClick={() => deactivatePlan(plan.id)}>
+                      <XCircle className="mr-1 h-4 w-4" /> Desactivar
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

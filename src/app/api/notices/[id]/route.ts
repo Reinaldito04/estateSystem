@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const noticeUpdateSchema = z.object({
   status: z.enum(["DRAFT", "SENT", "ACCEPTED", "REJECTED", "EXPIRED"]).optional(),
@@ -34,7 +35,7 @@ export async function PUT(
     return NextResponse.json(notice);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error updating notice:", error);
     return NextResponse.json({ error: "Error al actualizar notificación" }, { status: 500 });

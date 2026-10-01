@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, Plus, XCircle } from "lucide-react";
+import { CalendarClock, Plus, XCircle, Pencil } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { RESERVATION_STATUSES, RESERVATION_TYPES, labelOf } from "@/lib/management";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 type Reservation = {
   id: string;
@@ -34,6 +35,7 @@ export function PropertyReservationsPanel({ propertyId }: { propertyId: string }
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [clients, setClients] = useState<{ id: string; fullName: string }[]>([]);
   const [form, setForm] = useState(emptyForm);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -72,8 +74,8 @@ export function PropertyReservationsPanel({ propertyId }: { propertyId: string }
     if (!form.startDate || !form.endDate) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/reservations", {
-        method: "POST",
+      const response = await fetch(editingId ? `/api/reservations/${editingId}` : "/api/reservations", {
+        method: editingId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
@@ -82,16 +84,29 @@ export function PropertyReservationsPanel({ propertyId }: { propertyId: string }
         }),
       });
       if (response.ok) {
-        toast({ title: "Reserva creada", description: "El rango quedó apartado para el inmueble" });
+        toast({ title: editingId ? "Reserva actualizada" : "Reserva creada" });
         setForm(emptyForm);
+        setEditingId(null);
         fetchData();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "No se pudo crear la reserva", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "No se pudo guardar la reserva").message, variant: "destructive" });
       }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const editReservation = (reservation: Reservation) => {
+    setEditingId(reservation.id);
+    setForm({
+      type: reservation.type,
+      status: reservation.status,
+      startDate: reservation.startDate.slice(0, 10),
+      endDate: reservation.endDate.slice(0, 10),
+      clientId: reservation.client?.id || "",
+      notes: reservation.notes || "",
+    });
   };
 
   const cancelReservation = async (id: string) => {
@@ -128,8 +143,11 @@ export function PropertyReservationsPanel({ propertyId }: { propertyId: string }
             </select>
           </div>
           <div className="space-y-1 md:col-span-2"><Label htmlFor="res-notes">Notas</Label><Input id="res-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
-          <div className="md:col-span-3">
-            <Button type="submit" size="sm" disabled={isSubmitting}><Plus className="mr-1 h-4 w-4" /> Reservar fechas</Button>
+          <div className="flex gap-2 md:col-span-3">
+            <Button type="submit" size="sm" disabled={isSubmitting}><Plus className="mr-1 h-4 w-4" /> {editingId ? "Guardar cambios" : "Reservar fechas"}</Button>
+            {editingId && (
+              <Button type="button" size="sm" variant="outline" onClick={() => { setEditingId(null); setForm(emptyForm); }}>Cancelar</Button>
+            )}
           </div>
         </form>
 
@@ -151,6 +169,9 @@ export function PropertyReservationsPanel({ propertyId }: { propertyId: string }
                   <Badge variant={reservation.status === "CONFIRMED" ? "success" : reservation.status === "CANCELLED" ? "destructive" : "outline"}>
                     {labelOf(RESERVATION_STATUSES, reservation.status)}
                   </Badge>
+                  <Button type="button" size="icon" variant="ghost" aria-label="Editar reserva" onClick={() => editReservation(reservation)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   {reservation.status !== "CANCELLED" && (
                     <Button type="button" size="sm" variant="outline" onClick={() => cancelReservation(reservation.id)}>
                       <XCircle className="mr-1 h-4 w-4" /> Cancelar

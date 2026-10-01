@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
 import { recordAudit } from "@/lib/audit";
 
@@ -156,7 +157,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ...property, status: propertyStatusToUi(property.status), tags: property.tags.map((propertyTag) => propertyTag.tag) }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating property:", error);
     return NextResponse.json({ error: "Error al crear inmueble" }, { status: 500 });

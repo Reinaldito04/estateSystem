@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { toVisitStatus } from "@/lib/enum-mapping";
 
 const visitUpdateSchema = z.object({
@@ -24,7 +25,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (visit.count === 0) return NextResponse.json({ error: "Visita no encontrada" }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     return NextResponse.json({ error: "Error al actualizar visita" }, { status: 500 });
   }
 }

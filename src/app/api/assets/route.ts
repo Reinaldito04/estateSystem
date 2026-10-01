@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const createSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     await recordAudit({ entityType: "Asset", entityId: asset.id, action: "CREATE", changes: { name: asset.name }, request });
     return NextResponse.json(asset, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error creating asset:", error);
     return NextResponse.json({ error: "Error al crear activo" }, { status: 500 });
   }

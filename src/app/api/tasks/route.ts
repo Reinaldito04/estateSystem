@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
+import { requiredDate, optionalDate, spanishEnum } from "@/lib/schemas";
 
 const CATEGORIES = ["REVIEW", "MAINTENANCE", "PAYMENT", "CONTRACT", "VISIT", "OTHER"] as const;
 const STATUSES = ["PENDING", "IN_PROGRESS", "DONE", "CANCELLED"] as const;
@@ -10,16 +12,16 @@ const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const FREQUENCIES = ["ONCE", "DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL"] as const;
 
 const createSchema = z.object({
-  title: z.string().min(1, "Título es requerido"),
+  title: z.string().min(1, "El título es requerido"),
   description: z.string().optional(),
-  category: z.enum(CATEGORIES).default("OTHER"),
-  status: z.enum(STATUSES).default("PENDING"),
-  priority: z.enum(PRIORITIES).default("MEDIUM"),
-  dueDate: z.string().transform((s) => new Date(s)),
-  startAt: z.string().transform((s) => new Date(s)).optional().nullable(),
-  endAt: z.string().transform((s) => new Date(s)).optional().nullable(),
+  category: spanishEnum(CATEGORIES, "Selecciona una categoría válida").default("OTHER"),
+  status: spanishEnum(STATUSES, "Selecciona un estado válido").default("PENDING"),
+  priority: spanishEnum(PRIORITIES, "Selecciona una prioridad válida").default("MEDIUM"),
+  dueDate: requiredDate("La fecha es requerida"),
+  startAt: optionalDate(),
+  endAt: optionalDate(),
   allDay: z.boolean().default(true),
-  recurrence: z.enum(FREQUENCIES).default("ONCE"),
+  recurrence: spanishEnum(FREQUENCIES, "Selecciona una recurrencia válida").default("ONCE"),
   propertyId: z.string().uuid().optional().nullable(),
   clientId: z.string().uuid().optional().nullable(),
   leaseId: z.string().uuid().optional().nullable(),
@@ -94,6 +96,10 @@ export async function POST(request: NextRequest) {
     const task = await prisma.task.create({
       data: {
         ...data,
+        category: data.category as Prisma.TaskCreateInput["category"],
+        status: data.status as Prisma.TaskCreateInput["status"],
+        priority: data.priority as Prisma.TaskCreateInput["priority"],
+        recurrence: data.recurrence as Prisma.TaskCreateInput["recurrence"],
         startAt: data.startAt ?? null,
         endAt: data.endAt ?? null,
         propertyId: data.propertyId || null,
@@ -112,7 +118,7 @@ export async function POST(request: NextRequest) {
     await recordAudit({ entityType: "Task", entityId: task.id, action: "CREATE", changes: { title: task.title }, request });
     return NextResponse.json(task, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error creating task:", error);
     return NextResponse.json({ error: "Error al crear tarea" }, { status: 500 });
   }

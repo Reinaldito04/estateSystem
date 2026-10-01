@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { buildAccountStatement } from "@/lib/account-statement";
+import { recordAudit } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await recordAudit({ entityType: "AccountStatement", entityId: statement.id, action: "CREATE", changes: { audience, propertyId: statement.propertyId }, request });
     return NextResponse.json({ statement, ...data }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error al guardar estado de cuenta";

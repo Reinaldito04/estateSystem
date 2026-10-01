@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { getApiError } from "@/lib/api-error";
 
 type InterestStatus = "new" | "contacted" | "visit_scheduled" | "converted" | "lost";
 type Interest = {
@@ -142,7 +143,7 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
         body: JSON.stringify(body),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo guardar");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo guardar").message);
       reset();
       await refreshAfterSave(message);
     } catch (error) {
@@ -162,7 +163,7 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
         body: JSON.stringify({ type, id }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo eliminar");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo eliminar").message);
       await refresh();
     } catch (error) {
       toast({ title: "Error", description: error instanceof Error ? error.message : "No se pudo eliminar", variant: "destructive" });
@@ -200,7 +201,7 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
     try {
       const response = await fetch(`/api/properties/${propertyId}/media`, { method: "POST", body: form });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo subir el archivo");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo subir el archivo").message);
       setMediaFile(null);
       setMediaDescription("");
       setDocumentName("");
@@ -222,7 +223,7 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
         { method: "DELETE" }
       );
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo eliminar el archivo");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo eliminar el archivo").message);
       await refresh();
     } catch (error) {
       toast({ title: "Error", description: error instanceof Error ? error.message : "No se pudo eliminar", variant: "destructive" });
@@ -247,7 +248,7 @@ export function PropertyCrmPanel({ propertyId }: PropertyCrmPanelProps) {
         }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudieron guardar los campos");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudieron guardar los campos").message);
       await refreshAfterSave("Campos personalizados actualizados");
     } catch (error) {
       toast({ title: "Error", description: error instanceof Error ? error.message : "No se pudieron guardar los campos", variant: "destructive" });

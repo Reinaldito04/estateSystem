@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { ClientProfile } from "../types";
+import { getApiError } from "@/lib/api-error";
 
 const emptyReferenceForm = {
   referenceType: "PERSONAL",
@@ -156,7 +157,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo guardar la referencia");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo guardar la referencia").message);
 
       setReferenceForm(emptyReferenceForm);
       await refreshClient();
@@ -176,7 +177,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo guardar la comunicación");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo guardar la comunicación").message);
 
       setCommunicationForm(emptyCommunicationForm);
       await refreshClient();
@@ -206,7 +207,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo guardar el documento");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo guardar el documento").message);
 
       setDocumentForm(emptyDocumentForm);
       setRiskFile(null);
@@ -235,7 +236,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "No se pudo subir el documento");
+      if (!response.ok) throw new Error(getApiError(result, "No se pudo subir el documento").message);
 
       setDocumentFile(null);
       setDocumentName("");

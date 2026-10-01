@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import { recordAudit } from "@/lib/audit";
+import { optionalDate } from "@/lib/schemas";
 
 const issueUpdateSchema = z.object({
   propertyId: z.string().uuid().optional(),
-  clientId: z.string().uuid().optional(),
+  clientId: z.string().uuid().optional().nullable(),
   tenantId: z.string().uuid().optional(),
-  issueType: z.string().min(1).optional(),
-  description: z.string().min(1).optional(),
+  issueType: z.string().min(1, "Tipo de avería es requerido").optional(),
+  description: z.string().min(1, "Descripción es requerida").optional(),
   status: z.enum(["REPORTED", "IN_PROGRESS", "RESOLVED", "CANCELLED"]).optional(),
-  repairDate: z.string().transform((s) => new Date(s)).optional().nullable(),
+  reportDate: optionalDate(),
+  reportedByType: z.enum(["CLIENT", "OWNER", "USER", "SYSTEM"]).optional(),
+  reportedByUserId: z.string().uuid().optional().nullable(),
+  providerId: z.string().uuid().optional().nullable(),
+  repairDate: optionalDate(),
   repairDetails: z.string().optional(),
-  repairCost: z.number().min(0).optional(),
+  repairCost: z.number().min(0, "El costo no puede ser negativo").optional(),
   receiptUrl: z.string().optional(),
 });
 
@@ -54,9 +61,15 @@ export async function PUT(
     const body = await request.json();
     const validatedData = issueUpdateSchema.parse(body);
 
-    const { clientId, tenantId: legacyClientId, ...issueFields } = validatedData;
-    const updateData: Prisma.PropertyIssueUpdateInput = { ...issueFields };
+    const { clientId, tenantId: legacyClientId, providerId, reportDate, ...issueFields } = validatedData;
+    const updateData: Prisma.PropertyIssueUpdateInput = {
+      ...issueFields,
+      ...(reportDate ? { reportDate } : {}),
+    };
     if (clientId || legacyClientId) updateData.client = { connect: { id: clientId || legacyClientId } };
+    if (providerId !== undefined) {
+      updateData.provider = providerId ? { connect: { id: providerId } } : { disconnect: true };
+    }
     if (validatedData.repairCost !== undefined) {
       updateData.repairCost = new Prisma.Decimal(validatedData.repairCost);
     }
@@ -67,13 +80,15 @@ export async function PUT(
       include: {
         property: { select: { id: true, code: true, title: true } },
         client: { select: { id: true, fullName: true, phone: true } },
+        provider: { select: { id: true, companyName: true } },
       },
     });
 
+    await recordAudit({ entityType: "PropertyIssue", entityId: id, action: "UPDATE", changes: validatedData, request });
     return NextResponse.json({ ...issue, tenant: issue.client });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error updating issue:", error);
     return NextResponse.json({ error: "Error al actualizar avería" }, { status: 500 });
@@ -87,6 +102,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     await prisma.propertyIssue.delete({ where: { id } });
+    await recordAudit({ entityType: "PropertyIssue", entityId: id, action: "DELETE", request });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting issue:", error);

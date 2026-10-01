@@ -3,13 +3,15 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
+import { requiredDate } from "@/lib/schemas";
 
 const createSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
   type: z.enum(["VISIT", "LEASE_HOLD", "MAINTENANCE", "BLOCK"]).default("VISIT"),
   status: z.enum(["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"]).default("PENDING"),
-  startDate: z.string().transform((s) => new Date(s)),
-  endDate: z.string().transform((s) => new Date(s)),
+  startDate: requiredDate("La fecha de inicio es requerida"),
+  endDate: requiredDate("La fecha de fin es requerida"),
   clientId: z.string().uuid().optional().nullable(),
   notes: z.string().optional(),
   createdById: z.string().uuid().optional(),
@@ -89,7 +91,7 @@ export async function POST(request: NextRequest) {
     await recordAudit({ entityType: "PropertyReservation", entityId: reservation.id, action: "CREATE", changes: data, request });
     return NextResponse.json(reservation, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error creating reservation:", error);
     return NextResponse.json({ error: "Error al crear reserva" }, { status: 500 });
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Menu, Sun, Moon, User, Building, AlertTriangle, ChevronRight } from "lucide-react";
+import { Bell, Menu, Sun, Moon, AlertTriangle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useTheme } from "next-themes";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 import { GlobalSearch } from "./global-search";
 
 const breadcrumbMap: Record<string, string> = {
@@ -24,6 +25,7 @@ const breadcrumbMap: Record<string, string> = {
   "/dashboard/averias": "Averías",
   "/dashboard/calendario": "Calendario",
   "/dashboard/proveedores": "Proveedores",
+  "/dashboard/usuarios": "Usuarios",
   "/dashboard/estados-cuenta": "Estados de Cuenta",
   "/dashboard/documentos": "Documentos",
   "/dashboard/notificaciones": "Notificaciones",
@@ -32,7 +34,17 @@ const breadcrumbMap: Record<string, string> = {
 export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const { data: session } = useSession();
   const [alertCount, setAlertCount] = useState(0);
+
+  const userName = session?.user?.name ?? "Usuario";
+  const userRole = session?.user?.role ?? "";
+  const initials = userName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   useEffect(() => {
     const loadAlerts = async () => {
@@ -125,26 +137,20 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                 <Avatar className="h-9 w-9 ring-2 ring-border/40 transition-shadow hover:ring-primary/30">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">AD</AvatarFallback>
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials || "US"}</AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 p-1.5">
               <div className="px-3 py-2">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-sm font-medium">{userName}</p>
+                <p className="text-xs text-muted-foreground">{userRole}</p>
               </div>
               <DropdownMenuSeparator className="my-1.5" />
-              <DropdownMenuItem className="flex items-center gap-2.5 rounded-md px-3 py-2 cursor-pointer">
-                <User className="h-4 w-4 text-muted-foreground" />
-                Perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex items-center gap-2.5 rounded-md px-3 py-2 cursor-pointer">
-                <Building className="h-4 w-4 text-muted-foreground" />
-                Configuración
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="my-1.5" />
-              <DropdownMenuItem className="flex items-center gap-2.5 rounded-md px-3 py-2 cursor-pointer text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                className="flex items-center gap-2.5 rounded-md px-3 py-2 cursor-pointer text-destructive focus:text-destructive"
+                onSelect={() => signOut({ callbackUrl: "/login" })}
+              >
                 <AlertTriangle className="h-4 w-4" />
                 Cerrar sesión
               </DropdownMenuItem>

@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
+import { requiredDate } from "@/lib/schemas";
 
 const updateSchema = z.object({
   type: z.enum(["VISIT", "LEASE_HOLD", "MAINTENANCE", "BLOCK"]).optional(),
   status: z.enum(["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"]).optional(),
-  startDate: z.string().transform((s) => new Date(s)).optional(),
-  endDate: z.string().transform((s) => new Date(s)).optional(),
+  startDate: requiredDate().optional(),
+  endDate: requiredDate().optional(),
   clientId: z.string().uuid().optional().nullable(),
   notes: z.string().optional(),
 });
@@ -59,7 +61,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     await recordAudit({ entityType: "PropertyReservation", entityId: id, action: "UPDATE", changes: data, request });
     return NextResponse.json(reservation);
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error updating reservation:", error);
     return NextResponse.json({ error: "Error al actualizar reserva" }, { status: 500 });
   }

@@ -54,6 +54,7 @@ const operationalNavigation = [
   { name: "Proveedores", href: "/dashboard/proveedores", icon: HardHat },
   { name: "Documentos", href: "/dashboard/documentos", icon: FolderOpen },
   { name: "Notificaciones", href: "/dashboard/notificaciones", icon: Bell },
+  { name: "Usuarios", href: "/dashboard/usuarios", icon: Users },
 ];
 
 type NavItem = {

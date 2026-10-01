@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 
 const createSchema = z.object({
   name: z.string().min(1, "Nombre es requerido"),
@@ -30,7 +31,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(tag, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) return NextResponse.json({ error: error.errors }, { status: 400 });
+    if (error instanceof z.ZodError) return validationError(error);
     console.error("Error creating tag:", error);
     return NextResponse.json({ error: "Error al crear etiqueta" }, { status: 500 });
   }

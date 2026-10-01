@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { toReferenceType } from "@/lib/enum-mapping";
 
 const referenceSchema = z.object({
@@ -42,7 +43,7 @@ export async function POST(
     return NextResponse.json(reference, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating client reference:", error);
     return NextResponse.json({ error: "Error al crear la referencia" }, { status: 500 });

@@ -42,6 +42,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { getApiError } from "@/lib/api-error";
 
 interface Document {
   id: string;
@@ -175,7 +176,7 @@ export default function DocumentsPage() {
         const error = await response.json();
         const errorMessage = Array.isArray(error.error)
           ? error.error.map((e: { message: string }) => e.message).join(", ")
-          : error.error || "Error al guardar";
+          : getApiError(error, "Error al guardar").message;
         toast({ title: "Error", description: errorMessage, variant: "destructive" });
       }
     } catch {
@@ -205,7 +206,7 @@ export default function DocumentsPage() {
         fetchDocuments();
       } else {
         const error = await response.json();
-        toast({ title: "Error", description: error.error || "Error al eliminar", variant: "destructive" });
+        toast({ title: "Error", description: getApiError(error, "Error al eliminar").message, variant: "destructive" });
       }
     } catch {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isValidPropertyFilename, removePropertyFile } from "@/lib/property-file-storage";
 import { calculateLeaseBalance } from "@/lib/lease-balance";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
 import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
 import { recordAudit } from "@/lib/audit";
 
@@ -161,7 +162,7 @@ export async function PUT(
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error updating property:", error);
     return NextResponse.json({ error: "Error al actualizar inmueble" }, { status: 500 });

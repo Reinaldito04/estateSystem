@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { validationError } from "@/lib/validation";
+import { requiredDate, optionalDate } from "@/lib/schemas";
 import { Prisma } from "@prisma/client";
 import { calculateLeaseBalance } from "@/lib/lease-balance";
 
@@ -8,8 +10,8 @@ const leaseSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
   clientProfileId: z.string().uuid("Cliente inquilino es requerido"),
   contractNumber: z.string().min(1, "Número de contrato es requerido"),
-  startDate: z.string().transform((s) => new Date(s)),
-  endDate: z.string().transform((s) => new Date(s)),
+  startDate: requiredDate("La fecha de inicio es requerida"),
+  endDate: requiredDate("La fecha de fin es requerida"),
   monthlyCanonAmount: z.number().positive("Canon mensual debe ser positivo"),
   currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).default("USD"),
   depositAmount: z.number().min(0).default(0),
@@ -23,18 +25,18 @@ const leaseSchema = z.object({
   priceAdjustmentType: z.enum(["NONE", "IPC", "FIXED_PERCENT", "FIXED_AMOUNT", "PERCENTAGE", "INDEX"]).default("NONE"),
   priceAdjustmentValue: z.number().min(0).nullable().optional(),
   priceAdjustmentIndex: z.string().optional(),
-  nextAdjustmentDate: z.string().transform((s) => new Date(s)).nullable().optional(),
+  nextAdjustmentDate: optionalDate(),
   guarantorRequired: z.boolean().default(false),
   guarantorName: z.string().optional(),
   guarantorDocumentId: z.string().optional(),
   guarantorPhone: z.string().optional(),
-  guarantorEmail: z.string().email().optional().or(z.literal("")),
+  guarantorEmail: z.string().email("Correo del fiador inválido").optional().or(z.literal("")),
   templateId: z.string().uuid().nullable().optional(),
   draftContent: z.string().optional(),
   signatureProvider: z.string().optional(),
   signatureEnvelopeId: z.string().optional(),
   signatureStatus: z.enum(["NOT_REQUIRED", "PENDING", "SENT", "SIGNED", "DECLINED", "EXPIRED"]).default("NOT_REQUIRED"),
-  signedAt: z.string().transform((s) => new Date(s)).nullable().optional(),
+  signedAt: optionalDate(),
   signedIp: z.string().optional(),
 });
 
@@ -233,7 +235,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(lease, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return validationError(error);
     }
     console.error("Error creating lease:", error);
     return NextResponse.json({ error: "Error al crear contrato" }, { status: 500 });
