@@ -30,6 +30,7 @@ import {
   User,
   ShieldAlert,
   Mail,
+  TrendingUp,
 } from "lucide-react";
 import { formatDate, formatCurrency, calculateDaysUntil } from "@/lib/utils";
 import { ListSkeleton } from "@/components/shared/skeletons";
@@ -94,6 +95,8 @@ export default function NotificationsPage() {
   const [automatedAlerts, setAutomatedAlerts] = useState<AutomatedAlert[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isApplyingAdjustments, setIsApplyingAdjustments] = useState(false);
+  const [isSendingReminders, setIsSendingReminders] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedLease, setSelectedLease] = useState<ExpiringLease | null>(null);
   const [formData, setFormData] = useState({
@@ -174,6 +177,44 @@ export default function NotificationsPage() {
       toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const applyCanonAdjustments = async () => {
+    setIsApplyingAdjustments(true);
+    try {
+      const response = await fetch("/api/leases/adjustments", { method: "POST" });
+      const data = await response.json();
+      if (response.ok) {
+        toast({
+          title: "Ajustes aplicados",
+          description: `${data.applied?.length ?? 0} contrato(s) actualizado(s), ${data.skipped?.length ?? 0} omitido(s).`,
+        });
+        fetchAutomatedAlerts();
+      } else {
+        toast({ title: "Error", description: data.error || "No se pudieron aplicar los ajustes", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
+    } finally {
+      setIsApplyingAdjustments(false);
+    }
+  };
+
+  const sendPaymentReminders = async () => {
+    setIsSendingReminders(true);
+    try {
+      const response = await fetch("/api/payment-reminders", { method: "POST" });
+      const data = await response.json();
+      if (response.ok) {
+        toast({ title: "Recordatorios", description: data.message });
+      } else {
+        toast({ title: "Error", description: data.error || "No se pudieron enviar los recordatorios", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Error", description: "Error de conexión", variant: "destructive" });
+    } finally {
+      setIsSendingReminders(false);
     }
   };
 
@@ -315,10 +356,20 @@ export default function NotificationsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Notificaciones y Alertas</h1>
           <p className="text-muted-foreground mt-1">Vencimientos de contratos, propuestas de renovación y notificaciones</p>
         </div>
-        <Button onClick={generateExpirationNotices} disabled={isGenerating}>
-          {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-          Generar Alertas de Vencimiento
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={applyCanonAdjustments} disabled={isApplyingAdjustments}>
+            {isApplyingAdjustments ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <TrendingUp className="h-4 w-4 mr-2" />}
+            Aplicar ajustes de canon
+          </Button>
+          <Button variant="outline" onClick={sendPaymentReminders} disabled={isSendingReminders}>
+            {isSendingReminders ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
+            Enviar recordatorios de pago
+          </Button>
+          <Button onClick={generateExpirationNotices} disabled={isGenerating}>
+            {isGenerating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Generar Alertas de Vencimiento
+          </Button>
+        </div>
       </div>
 
       <Card>

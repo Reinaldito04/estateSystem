@@ -39,6 +39,9 @@ const leaseUpdateSchema = z.object({
   priceAdjustmentValue: z.number().min(0).nullable().optional(),
   priceAdjustmentIndex: z.string().optional(),
   nextAdjustmentDate: optionalDate(),
+  lateFeeType: z.enum(["NONE", "FIXED", "PERCENT_DAILY", "PERCENT_MONTHLY"]).optional(),
+  lateFeeValue: z.number().min(0).nullable().optional(),
+  lateFeeGraceDays: z.number().int().min(0).max(365).optional(),
   guarantorRequired: z.boolean().optional(),
   guarantorName: z.string().optional(),
   guarantorDocumentId: z.string().optional(),
@@ -132,6 +135,7 @@ export async function GET(
         })),
         new Date(),
         lease.currency,
+        { type: lease.lateFeeType, value: lease.lateFeeValue === null ? null : Number(lease.lateFeeValue), graceDays: lease.lateFeeGraceDays },
       ),
     });
   } catch (error) {
@@ -219,6 +223,15 @@ export async function PUT(
     }
     if (validatedData.priceAdjustmentValue !== undefined) {
       updateData.priceAdjustmentValue = validatedData.priceAdjustmentValue === null ? null : new Prisma.Decimal(validatedData.priceAdjustmentValue);
+    }
+    if (validatedData.lateFeeType !== undefined) {
+      updateData.lateFeeType = validatedData.lateFeeType;
+    }
+    if (validatedData.lateFeeValue !== undefined) {
+      updateData.lateFeeValue = validatedData.lateFeeValue === null ? null : new Prisma.Decimal(validatedData.lateFeeValue);
+    }
+    if (validatedData.lateFeeGraceDays !== undefined) {
+      updateData.lateFeeGraceDays = validatedData.lateFeeGraceDays;
     }
 
     const hasGuarantorInput =

@@ -12,8 +12,44 @@ export type LeaseBalance = {
   debtAmount: number;
   overdueInstallments: number;
   debtDays: number;
+  lateFeeAmount: number;
+  totalDue: number;
   paidByCurrency: { currency: string; total: number }[];
 };
+
+export type LateFeeConfig = {
+  type?: string | null;
+  value?: number | string | null;
+  graceDays?: number | null;
+};
+
+export function calculateLateFee(
+  debtAmount: number,
+  debtDays: number,
+  config?: LateFeeConfig,
+): number {
+  if (!config || !config.type || config.type === "NONE") return 0;
+  if (debtAmount <= 0) return 0;
+  const grace = config.graceDays ?? 0;
+  const chargeableDays = Math.max(0, debtDays - grace);
+  if (chargeableDays <= 0) return 0;
+  const value = toNumber(config.value);
+  if (value <= 0) return 0;
+  switch (config.type) {
+    case "FIXED":
+      return round2(value);
+    case "PERCENT_DAILY":
+      return round2(debtAmount * (value / 100) * chargeableDays);
+    case "PERCENT_MONTHLY":
+      return round2(debtAmount * (value / 100) * (chargeableDays / 30));
+    default:
+      return 0;
+  }
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 function startOfDay(date: Date): Date {
   const result = new Date(date);
@@ -46,6 +82,7 @@ export function calculateLeaseBalance(
   transactions: RentTransaction[],
   referenceDate = new Date(),
   currency?: string,
+  lateFeeConfig?: LateFeeConfig,
 ): LeaseBalance {
   const start = startOfDay(new Date(startDate));
   const end = startOfDay(new Date(endDate));
@@ -85,12 +122,16 @@ export function calculateLeaseBalance(
     ? Math.max(0, Math.floor((today.getTime() - oldestUnpaidDate.getTime()) / 86400000))
     : 0;
 
+  const lateFeeAmount = calculateLateFee(debtAmount, debtDays, lateFeeConfig);
+
   return {
     rentDue,
     paidRent,
     debtAmount,
     overdueInstallments,
     debtDays,
+    lateFeeAmount,
+    totalDue: round2(debtAmount + lateFeeAmount),
     paidByCurrency: Array.from(paidByCurrencyMap.entries()).map(([code, total]) => ({ currency: code, total })),
   };
 }

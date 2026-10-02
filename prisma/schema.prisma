@@ -187,6 +187,20 @@ enum PriceAdjustmentType {
   INDEX
 }
 
+enum LateFeeType {
+  NONE
+  FIXED
+  PERCENT_DAILY
+  PERCENT_MONTHLY
+}
+
+enum SettlementStatus {
+  DRAFT
+  ISSUED
+  PAID
+  CANCELLED
+}
+
 enum SignatureStatus {
   NOT_REQUIRED
   PENDING
@@ -330,6 +344,7 @@ model User {
   contractTemplates    ContractTemplate[]
   clientCommunications ClientCommunication[]
   accountStatements    AccountStatement[]
+  ownerSettlements     OwnerSettlement[]
   assets               Asset[]                  @relation("AssetCreatedBy")
   providers            ServiceProvider[]        @relation("ProviderCreatedBy")
   plans                MaintenancePlan[]        @relation("PlanCreatedBy")
@@ -401,6 +416,7 @@ model ClientProfile {
   documents         EntityDocument[]
   guarantors        LeaseGuarantor[]
   accountStatements AccountStatement[]
+  settlements       OwnerSettlement[]
   tasks             Task[]
   reservations      PropertyReservation[]
 
@@ -644,6 +660,9 @@ model Lease {
   priceAdjustmentValue Decimal?                 @map("price_adjustment_value") @db.Decimal(8, 4)
   priceAdjustmentIndex String?                  @map("price_adjustment_index")
   nextAdjustmentDate   DateTime?                @map("next_adjustment_date")
+  lateFeeType          LateFeeType              @default(NONE) @map("late_fee_type")
+  lateFeeValue         Decimal?                 @map("late_fee_value") @db.Decimal(8, 4)
+  lateFeeGraceDays     Int                      @default(0) @map("late_fee_grace_days")
   templateId           String?                  @map("template_id")
   template             ContractTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
   draftContent         String?                  @map("draft_content")
@@ -766,11 +785,53 @@ model Transaction {
   paymentMethod   String          @map("payment_method")
   referenceNumber String?         @map("reference_number")
   receiptUrl      String?         @map("receipt_url")
+  receiptNumber   String?         @unique @map("receipt_number")
+  receiptIssuedAt DateTime?       @map("receipt_issued_at")
   description     String?
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   @@map("transactions")
+}
+
+model DocumentSequence {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  prefix    String
+  nextValue Int      @default(1) @map("next_value")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("document_sequences")
+}
+
+model OwnerSettlement {
+  id                String           @id @default(uuid())
+  settlementNumber  String           @unique @map("settlement_number")
+  ownerId           String           @map("owner_id")
+  owner             ClientProfile    @relation(fields: [ownerId], references: [id])
+  periodStart       DateTime         @map("period_start")
+  periodEnd         DateTime         @map("period_end")
+  currency          CurrencyCode     @default(USD)
+  grossIncome       Decimal          @default(0.00) @map("gross_income") @db.Decimal(12, 2)
+  agencyCommission  Decimal          @default(0.00) @map("agency_commission") @db.Decimal(12, 2)
+  commissionRate    Decimal          @default(0.00) @map("commission_rate") @db.Decimal(6, 4)
+  expenses          Decimal          @default(0.00) @map("expenses") @db.Decimal(12, 2)
+  lateFees          Decimal          @default(0.00) @map("late_fees") @db.Decimal(12, 2)
+  netPayout         Decimal          @default(0.00) @map("net_payout") @db.Decimal(12, 2)
+  status            SettlementStatus @default(DRAFT)
+  notes             String?
+  summary           Json             @default("{}")
+  documentUrl       String?          @map("document_url")
+  createdById       String?          @map("created_by_id")
+  createdBy         User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  paidAt            DateTime?        @map("paid_at")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([ownerId, periodEnd])
+  @@index([status, periodEnd])
+  @@map("owner_settlements")
 }
 
 model PropertyIssue {

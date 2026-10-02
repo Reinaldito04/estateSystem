@@ -39,6 +39,9 @@ const leaseSchema = z.object({
   priceAdjustmentValue: z.number().min(0).nullable().optional(),
   priceAdjustmentIndex: z.string().optional(),
   nextAdjustmentDate: optionalDate(),
+  lateFeeType: z.enum(["NONE", "FIXED", "PERCENT_DAILY", "PERCENT_MONTHLY"]).default("NONE"),
+  lateFeeValue: z.number().min(0).nullable().optional(),
+  lateFeeGraceDays: z.number().int().min(0).max(365).default(0),
   guarantorRequired: z.boolean().default(false),
   guarantorName: z.string().optional(),
   guarantorDocumentId: z.string().optional(),
@@ -138,6 +141,7 @@ export async function GET(request: NextRequest) {
           transactions.map(toBalanceInput),
           new Date(),
           lease.currency,
+          { type: lease.lateFeeType, value: lease.lateFeeValue === null ? null : Number(lease.lateFeeValue), graceDays: lease.lateFeeGraceDays },
         ),
       })),
       pagination: {
@@ -229,6 +233,9 @@ export async function POST(request: NextRequest) {
         reservationAmount: new Prisma.Decimal(leaseData.reservationAmount),
         contractFeeAmount: new Prisma.Decimal(leaseData.contractFeeAmount),
         priceAdjustmentValue: leaseData.priceAdjustmentValue === null || leaseData.priceAdjustmentValue === undefined ? null : new Prisma.Decimal(leaseData.priceAdjustmentValue),
+        lateFeeType: leaseData.lateFeeType,
+        lateFeeValue: leaseData.lateFeeValue === null || leaseData.lateFeeValue === undefined ? null : new Prisma.Decimal(leaseData.lateFeeValue),
+        lateFeeGraceDays: leaseData.lateFeeGraceDays,
       },
       include: {
         property: { select: { id: true, code: true, title: true, address: true } },

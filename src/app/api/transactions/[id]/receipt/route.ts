@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { createReceiptDocument } from "@/lib/lease-document-pdf";
 import { pdfResponse } from "@/lib/pdf-response";
 import { handleRouteError } from "@/lib/domain-error";
+import { nextDocumentNumber } from "@/lib/document-sequence";
 
 export const runtime = "nodejs";
 
@@ -31,10 +32,20 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     if (!transaction || transaction.property.deletedAt) {
       return NextResponse.json({ error: "Transacción no encontrada" }, { status: 404 });
     }
+
+    let receiptNumber = transaction.receiptNumber;
+    if (!receiptNumber) {
+      receiptNumber = await nextDocumentNumber("RECEIPT", transaction.paymentDate);
+      await prisma.transaction.update({
+        where: { id: transaction.id },
+        data: { receiptNumber, receiptIssuedAt: new Date() },
+      });
+    }
+
     const buffer = await renderToBuffer(
       createReceiptDocument({
         agencyName: process.env.AGENCY_NAME || "Inmobiliaria",
-        receiptNumber: transaction.referenceNumber || transaction.id.slice(0, 8),
+        receiptNumber,
         paymentDate: transaction.paymentDate,
         propertyLabel: `${transaction.property.code} - ${transaction.property.title}`,
         contractNumber: transaction.lease && !transaction.lease.deletedAt ? transaction.lease.contractNumber : null,

@@ -32,6 +32,8 @@ export function GlobalSearch() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
 
   const performSearch = useCallback(async (searchQuery: string) => {
     if (searchQuery.trim().length < 2) {
@@ -39,6 +41,11 @@ export function GlobalSearch() {
       setIsLoading(false);
       return;
     }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const requestId = ++requestIdRef.current;
 
     setIsLoading(true);
     try {
@@ -54,7 +61,7 @@ export function GlobalSearch() {
       const responses = await Promise.all(
         endpoints.map(async (endpoint) => {
           try {
-            const res = await fetch(endpoint.url);
+            const res = await fetch(endpoint.url, { signal: controller.signal });
             if (!res.ok) return [];
             const data = await res.json();
             return data.data.map((item: Record<string, unknown>) => ({
@@ -70,13 +77,15 @@ export function GlobalSearch() {
         })
       );
 
+      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
+
       const allResults = responses.flat();
       setResults(allResults);
       setSelectedIndex(-1);
     } catch {
-      setResults([]);
+      if (requestId === requestIdRef.current) setResults([]);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) setIsLoading(false);
     }
   }, []);
 

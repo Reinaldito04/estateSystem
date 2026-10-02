@@ -27,6 +27,7 @@ import {
   CalendarDays,
   ClipboardList,
   ExternalLink,
+  Download,
   LayoutDashboard,
   Users,
   Wallet,
@@ -585,7 +586,14 @@ export default function PropertyDetailPage({ params }: { params: Promise<{ id: s
         <TabsContent value="operacion" className="space-y-5">
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
-              <CardHeader><CardTitle className="text-base">Expediente digital</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+                <CardTitle className="text-base">Expediente digital</CardTitle>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`/api/properties/${property.id}/inventory`} target="_blank" rel="noreferrer">
+                    <Download className="mr-2 h-4 w-4" />Inventario PDF
+                  </a>
+                </Button>
+              </CardHeader>
               <CardContent>
                 {property.documents.length === 0 ? <p className="text-sm text-muted-foreground">No hay documentos cargados. Puedes añadirlos desde Documentos vinculándolos a este inmueble.</p> : <div className="space-y-2">{property.documents.map((document) => <a key={document.id} href={document.fileUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 transition-colors hover:border-primary/50 hover:bg-muted/40"><span className="min-w-0 truncate text-sm font-medium">{document.documentName}</span><span className="shrink-0 text-xs text-muted-foreground">{formatDate(document.uploadedAt)}</span></a>)}</div>}
               </CardContent>

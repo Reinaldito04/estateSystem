@@ -34,6 +34,7 @@ import {
   FileSignature,
   RefreshCw,
   Loader2,
+  Download,
 } from "lucide-react";
 import { formatCurrency, formatDate, calculateDaysUntil, PAYMENT_CATEGORIES } from "@/lib/utils";
 import { getApiError } from "@/lib/api-error";
@@ -94,6 +95,8 @@ interface Lease {
     debtAmount: number;
     overdueInstallments: number;
     debtDays: number;
+    lateFeeAmount: number;
+    totalDue: number;
   };
   contractStatus: string;
   renewalMode: string;
@@ -295,6 +298,11 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
               </a>
             </Button>
           )}
+          <Button asChild variant="outline" size="sm">
+            <a href={`/api/leases/${lease.id}/acta`} target="_blank" rel="noopener noreferrer">
+              <Download className="mr-2 h-4 w-4" />Acta de entrega
+            </a>
+          </Button>
         </div>
       </div>
 
@@ -310,7 +318,11 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
           <CardContent className="p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Canon mensual</p>
             <p className="mt-2 text-3xl font-semibold tabular-nums">{formatCurrency(lease.monthlyCanonAmount)}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Vencimiento cada mes</p>
+            {lease.balance.lateFeeAmount > 0 ? (
+              <p className="mt-1 text-sm font-medium text-amber-600">Mora: {formatCurrency(lease.balance.lateFeeAmount)}</p>
+            ) : (
+              <p className="mt-1 text-sm text-muted-foreground">Vencimiento cada mes</p>
+            )}
           </CardContent>
         </Card>
         <Card>

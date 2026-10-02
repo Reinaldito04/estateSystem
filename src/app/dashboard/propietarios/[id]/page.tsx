@@ -22,10 +22,37 @@ import {
   CreditCard,
   Calendar,
   FileText,
+  Download,
+  Receipt,
+  Loader2,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PageHeader, DetailSection } from "@/components/shared/page-header";
 import { DetailPageSkeleton } from "@/components/shared/skeletons";
+
+interface OwnerSettlement {
+  id: string;
+  settlementNumber: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  grossIncome: string;
+  agencyCommission: string;
+  expenses: string;
+  lateFees: string;
+  netPayout: string;
+  status: string;
+}
 
 interface Owner {
   id: string;
@@ -63,6 +90,26 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentName, setDocumentName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [settlements, setSettlements] = useState<OwnerSettlement[]>([]);
+  const [isGeneratingSettlement, setIsGeneratingSettlement] = useState(false);
+  const [settlementForm, setSettlementForm] = useState({
+    periodStart: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10),
+    periodEnd: new Date().toISOString().slice(0, 10),
+    currency: "USD",
+  });
+  const { toast } = useToast();
+
+  const loadSettlements = async () => {
+    try {
+      const response = await fetch(`/api/owner-settlements?ownerId=${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSettlements(data.data ?? []);
+      }
+    } catch (error) {
+      console.error("Error fetching settlements:", error);
+    }
+  };
 
   const loadOwner = async () => {
     try {
@@ -81,7 +128,46 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
       setIsLoading(false);
     };
     fetchOwner();
+    void loadSettlements();
   }, [id]);
+
+  const generateSettlement = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsGeneratingSettlement(true);
+    try {
+      const response = await fetch("/api/owner-settlements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ownerId: id,
+          periodStart: settlementForm.periodStart,
+          periodEnd: settlementForm.periodEnd,
+          currency: settlementForm.currency,
+        }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || "No se pudo generar la liquidación");
+      }
+      await loadSettlements();
+      toast({ title: "Liquidación generada", description: "El borrador quedó registrado." });
+    } catch (error) {
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error al generar liquidación", variant: "destructive" });
+    } finally {
+      setIsGeneratingSettlement(false);
+    }
+  };
+
+  const updateSettlementStatus = async (settlementId: string, status: string) => {
+    const response = await fetch(`/api/owner-settlements/${settlementId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    if (response.ok) {
+      setSettlements((current) => current.map((item) => item.id === settlementId ? { ...item, status } : item));
+    }
+  };
 
   const handleUploadDocument = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -319,6 +405,92 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </CardContent>
       </Card>
+      </DetailSection>
+
+      <DetailSection title="Liquidaciones al propietario" eyebrow="Finanzas">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Generar liquidación</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={generateSettlement} className="grid gap-3 sm:grid-cols-[1fr_1fr_0.7fr_auto]">
+              <div className="space-y-1">
+                <Label htmlFor="settlement-start">Desde</Label>
+                <Input id="settlement-start" type="date" required value={settlementForm.periodStart} onChange={(event) => setSettlementForm({ ...settlementForm, periodStart: event.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="settlement-end">Hasta</Label>
+                <Input id="settlement-end" type="date" required value={settlementForm.periodEnd} onChange={(event) => setSettlementForm({ ...settlementForm, periodEnd: event.target.value })} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="settlement-currency">Moneda</Label>
+                <Select value={settlementForm.currency} onValueChange={(value) => setSettlementForm({ ...settlementForm, currency: value })}>
+                  <SelectTrigger id="settlement-currency"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL"].map((currency) => (
+                      <SelectItem key={currency} value={currency}>{currency}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" disabled={isGeneratingSettlement} className="self-end">
+                {isGeneratingSettlement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Receipt className="mr-2 h-4 w-4" />}
+                Generar
+              </Button>
+            </form>
+
+            {settlements.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">No hay liquidaciones registradas</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Número</TableHead>
+                      <TableHead>Período</TableHead>
+                      <TableHead className="text-right">Ingresos</TableHead>
+                      <TableHead className="text-right">Comisión</TableHead>
+                      <TableHead className="text-right">Gastos</TableHead>
+                      <TableHead className="text-right">Neto</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {settlements.map((settlement) => (
+                      <TableRow key={settlement.id}>
+                        <TableCell className="font-mono text-xs font-medium">{settlement.settlementNumber}</TableCell>
+                        <TableCell className="text-sm">{formatDate(settlement.periodStart)} - {formatDate(settlement.periodEnd)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(settlement.grossIncome, settlement.currency)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">-{formatCurrency(settlement.agencyCommission, settlement.currency)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">-{formatCurrency(settlement.expenses, settlement.currency)}</TableCell>
+                        <TableCell className="text-right font-semibold">{formatCurrency(settlement.netPayout, settlement.currency)}</TableCell>
+                        <TableCell>
+                          <Select value={settlement.status} onValueChange={(value) => updateSettlementStatus(settlement.id, value)}>
+                            <SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="DRAFT">Borrador</SelectItem>
+                              <SelectItem value="ISSUED">Emitida</SelectItem>
+                              <SelectItem value="PAID">Pagada</SelectItem>
+                              <SelectItem value="CANCELLED">Cancelada</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="ghost" size="sm">
+                            <a href={`/api/owner-settlements/${settlement.id}/pdf`} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </DetailSection>
     </div>
   );

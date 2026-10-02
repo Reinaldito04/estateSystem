@@ -65,6 +65,9 @@ interface Lease {
   priceAdjustmentValue: string | null;
   priceAdjustmentIndex: string | null;
   nextAdjustmentDate: string | null;
+  lateFeeType: string;
+  lateFeeValue: string | null;
+  lateFeeGraceDays: number;
   guarantorRequired: boolean;
   guarantorName: string | null;
   guarantorDocumentId: string | null;
@@ -80,6 +83,8 @@ interface Lease {
       debtAmount: number;
       overdueInstallments: number;
       debtDays: number;
+      lateFeeAmount: number;
+      totalDue: number;
     };
   createdAt: string;
   _count: { transactions: number; notices: number };
@@ -139,6 +144,9 @@ export default function LeasesPage() {
     priceAdjustmentValue: "",
     priceAdjustmentIndex: "",
     nextAdjustmentDate: "",
+    lateFeeType: "NONE",
+    lateFeeValue: "",
+    lateFeeGraceDays: "0",
     guarantorRequired: false,
     guarantorName: "",
     guarantorDocumentId: "",
@@ -225,6 +233,9 @@ export default function LeasesPage() {
           renewalNoticeDays: parseInt(formData.renewalNoticeDays, 10) || 30,
           priceAdjustmentValue: formData.priceAdjustmentValue ? parseFloat(formData.priceAdjustmentValue) : null,
           nextAdjustmentDate: formData.nextAdjustmentDate || null,
+          lateFeeType: formData.lateFeeType,
+          lateFeeValue: formData.lateFeeValue ? parseFloat(formData.lateFeeValue) : null,
+          lateFeeGraceDays: parseInt(formData.lateFeeGraceDays, 10) || 0,
           guarantorEmail: formData.guarantorEmail || undefined,
         }),
       });
@@ -267,6 +278,9 @@ export default function LeasesPage() {
       priceAdjustmentValue: lease.priceAdjustmentValue || "",
       priceAdjustmentIndex: lease.priceAdjustmentIndex || "",
       nextAdjustmentDate: lease.nextAdjustmentDate?.split("T")[0] || "",
+      lateFeeType: lease.lateFeeType || "NONE",
+      lateFeeValue: lease.lateFeeValue || "",
+      lateFeeGraceDays: (lease.lateFeeGraceDays ?? 0).toString(),
       guarantorRequired: lease.guarantorRequired,
       guarantorName: lease.guarantorName || "",
       guarantorDocumentId: lease.guarantorDocumentId || "",
@@ -314,6 +328,9 @@ export default function LeasesPage() {
       priceAdjustmentValue: "",
       priceAdjustmentIndex: "",
       nextAdjustmentDate: "",
+      lateFeeType: "NONE",
+      lateFeeValue: "",
+      lateFeeGraceDays: "0",
       guarantorRequired: false,
       guarantorName: "",
       guarantorDocumentId: "",
@@ -523,6 +540,36 @@ export default function LeasesPage() {
               </div>
 
               <div className="border-t pt-4">
+                <h3 className="mb-3 font-medium">Mora e intereses</h3>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="lateFeeType">Tipo de mora</Label>
+                    <Select value={formData.lateFeeType} onValueChange={(value) => setFormData({ ...formData, lateFeeType: value })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="NONE">Sin mora</SelectItem>
+                        <SelectItem value="FIXED">Monto fijo</SelectItem>
+                        <SelectItem value="PERCENT_DAILY">Porcentaje diario</SelectItem>
+                        <SelectItem value="PERCENT_MONTHLY">Porcentaje mensual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {formData.lateFeeType !== "NONE" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="lateFeeValue">{formData.lateFeeType === "FIXED" ? "Monto fijo" : "Porcentaje (%)"}</Label>
+                      <Input id="lateFeeValue" type="number" min="0" step="0.01" value={formData.lateFeeValue} onChange={(event) => setFormData({ ...formData, lateFeeValue: event.target.value })} placeholder="0" />
+                    </div>
+                  )}
+                  {formData.lateFeeType !== "NONE" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="lateFeeGraceDays">Días de gracia</Label>
+                      <Input id="lateFeeGraceDays" type="number" min="0" max="365" value={formData.lateFeeGraceDays} onChange={(event) => setFormData({ ...formData, lateFeeGraceDays: event.target.value })} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
                 <h3 className="mb-3 font-medium">Garantías y fiador</h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="flex items-center gap-3 md:col-span-2"><input id="guarantorRequired" type="checkbox" checked={formData.guarantorRequired} onChange={(event) => setFormData({ ...formData, guarantorRequired: event.target.checked })} className="h-4 w-4 accent-primary" /><Label htmlFor="guarantorRequired">Este contrato requiere fiador o aval</Label></div>
@@ -609,6 +656,7 @@ export default function LeasesPage() {
                       <TableHead>Inquilino</TableHead>
                       <TableHead>Canon</TableHead>
                                             <TableHead>Deuda</TableHead>
+                                            <TableHead>Mora</TableHead>
                                             <TableHead>Días deuda</TableHead>
                       <TableHead>Vigencia</TableHead>
                       <TableHead>Estado</TableHead>
@@ -640,6 +688,11 @@ export default function LeasesPage() {
                                                   <div className="text-xs text-muted-foreground">
                                                     {lease.balance.overdueInstallments} cuota{lease.balance.overdueInstallments === 1 ? "" : "s"}
                                                   </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                  {lease.balance.lateFeeAmount > 0 ? (
+                                                    <span className="font-semibold text-amber-600">{formatCurrency(lease.balance.lateFeeAmount)}</span>
+                                                  ) : <span className="text-muted-foreground">-</span>}
                                                 </TableCell>
                                                 <TableCell>
                                                   <span className={lease.balance.debtDays > 0 ? "font-semibold text-red-600" : "text-emerald-600"}>

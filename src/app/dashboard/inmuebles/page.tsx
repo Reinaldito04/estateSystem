@@ -844,6 +844,22 @@ export default function PropertiesPage() {
                 ))}
               </SelectContent>
             </Select>
+            <SearchableSelect
+              value={ownerFilter}
+              onValueChange={setOwnerFilter}
+              placeholder="Propietario"
+              searchPlaceholder="Buscar propietario…"
+              clearable
+              clearLabel="Todos los propietarios"
+              className="sm:w-52"
+              options={owners.map((owner) => ({ value: owner.id, label: owner.fullName }))}
+              onSearch={async (query) => {
+                const response = await fetch(`/api/owners?search=${encodeURIComponent(query)}&limit=20`);
+                if (!response.ok) return [];
+                const data = await response.json();
+                return (data.data ?? []).map((owner: { id: string; fullName: string }) => ({ value: owner.id, label: owner.fullName }));
+              }}
+            />
             <Select value={tagFilter || "all"} onValueChange={(value) => setTagFilter(value === "all" ? "" : value)}>
               <SelectTrigger className="sm:w-40">
                 <SelectValue placeholder="Etiquetas" />

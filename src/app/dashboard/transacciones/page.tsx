@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   Plus,
   Search,
@@ -39,6 +40,7 @@ import {
   Loader2,
   DollarSign,
   TrendingUp,
+  ReceiptText,
 } from "lucide-react";
 import {
   formatCurrency,
@@ -63,6 +65,7 @@ interface Transaction {
   paymentMethod: string;
   referenceNumber: string | null;
   receiptUrl: string | null;
+  receiptNumber: string | null;
   description: string | null;
   property: { id: string; code: string; title: string };
   lease: { id: string; contractNumber: string } | null;
@@ -123,6 +126,8 @@ export default function TransactionsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
+  const { canWriteApi } = usePermissions();
+  const canManage = canWriteApi("/api/transactions");
 
   const fetchTransactions = async () => {
     setIsLoading(true);
@@ -335,12 +340,14 @@ export default function TransactionsPage() {
           <p className="text-muted-foreground mt-1">Registro unificado de pagos, canon, servicios y comprobantes</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpenCreate}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Transacción
-            </Button>
-          </DialogTrigger>
+          {canManage && (
+            <DialogTrigger asChild>
+              <Button onClick={handleOpenCreate}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Transacción
+              </Button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{editingTransaction ? "Editar Transacción" : "Nueva Transacción"}</DialogTitle>
@@ -663,6 +670,7 @@ export default function TransactionsPage() {
                       <TableHead>Método</TableHead>
                       <TableHead>Vence</TableHead>
                       <TableHead>Referencia</TableHead>
+                      <TableHead>Recibo N.º</TableHead>
                       <TableHead>Detalle</TableHead>
                       <TableHead>Comprobante</TableHead>
                       <TableHead className="text-right">Monto</TableHead>
@@ -689,22 +697,32 @@ export default function TransactionsPage() {
                         <TableCell>{transaction.paymentMethod}</TableCell>
                         <TableCell>{transaction.dueDate ? formatDate(transaction.dueDate) : "-"}</TableCell>
                         <TableCell>{transaction.referenceNumber || "-"}</TableCell>
+                        <TableCell className="font-mono text-xs">{transaction.receiptNumber || "-"}</TableCell>
                         <TableCell className="max-w-52 truncate" title={transaction.description || undefined}>{transaction.description || "-"}</TableCell>
                         <TableCell>
-                          {transaction.receiptUrl ? (
-                            <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver</a>
-                          ) : <span className="text-muted-foreground">-</span>}
+                          <div className="flex items-center gap-2">
+                            {transaction.receiptUrl ? (
+                              <a href={transaction.receiptUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Ver</a>
+                            ) : <span className="text-muted-foreground">-</span>}
+                            <a href={`/api/transactions/${transaction.id}/receipt`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline" aria-label="Generar recibo PDF">
+                              <ReceiptText className="h-4 w-4" />Recibo
+                            </a>
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-medium">{formatCurrency(transaction.amount, transaction.currency)}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} aria-label="Editar">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDelete(transaction.id)} aria-label="Eliminar">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
+                          {canManage ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <Button variant="ghost" size="icon" onClick={() => handleEdit(transaction)} aria-label="Editar">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDelete(transaction.id)} aria-label="Eliminar">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

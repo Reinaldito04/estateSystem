@@ -60,6 +60,23 @@ type DashboardData = {
     canon: string;
     currency: string;
   }[];
+  analytics?: {
+    occupancy: {
+      total: number;
+      occupied: number;
+      available: number;
+      occupancyRate: number;
+      vacancyRate: number;
+      avgDaysOnMarket: number;
+    };
+    debtAging: {
+      total: number;
+      byCurrency: { currency: string; total: number }[];
+      buckets: { days30: number; days60: number; days90: number; over90: number };
+    };
+    monthly: { month: string; income: number; expenses: number }[];
+    propertyPerformance: { propertyId: string; code: string; title: string; income: number; expenses: number; net: number; currency: string }[];
+  };
 };
 
 function StatCard({ stat }: { stat: Stat }) {
@@ -161,6 +178,102 @@ export default function DashboardPage() {
           <StatCardsSkeleton count={6} className="sm:col-span-2 xl:col-span-3" />
         )}
       </section>
+
+      {data?.analytics && (
+        <section aria-label="Analítica de cartera" className="space-y-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-primary">Analítica</p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">Ocupación, mora y rentabilidad</h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-[13px] font-medium text-muted-foreground">Tasa de ocupación</p>
+                <p className="mt-2 text-3xl font-semibold tabular-nums">{data.analytics.occupancy.occupancyRate}%</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-emerald-500" style={{ width: `${data.analytics.occupancy.occupancyRate}%` }} />
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">{data.analytics.occupancy.occupied} de {data.analytics.occupancy.total} ocupados · {data.analytics.occupancy.vacancyRate}% vacancia</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-[13px] font-medium text-muted-foreground">Días promedio en mercado</p>
+                <p className="mt-2 text-3xl font-semibold tabular-nums">{data.analytics.occupancy.avgDaysOnMarket}</p>
+                <p className="mt-2 text-xs text-muted-foreground">Desde registro hasta primer contrato</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-[13px] font-medium text-muted-foreground">Deuda total acumulada</p>
+                <p className="mt-2 text-3xl font-semibold tabular-nums text-red-600">
+                  {data.analytics.debtAging.byCurrency.length > 0
+                    ? data.analytics.debtAging.byCurrency.map((row) => formatCurrency(row.total, row.currency)).join(" · ")
+                    : formatCurrency(0)}
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">Canon vencido pendiente de cobro</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <p className="text-[13px] font-medium text-muted-foreground">Antigüedad de deuda</p>
+                <div className="mt-2 space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between"><span className="text-muted-foreground">Hasta 30 días</span><span className="font-medium tabular-nums">{formatCurrency(data.analytics.debtAging.buckets.days30)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-muted-foreground">31-60 días</span><span className="font-medium tabular-nums">{formatCurrency(data.analytics.debtAging.buckets.days60)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-muted-foreground">61-90 días</span><span className="font-medium tabular-nums">{formatCurrency(data.analytics.debtAging.buckets.days90)}</span></div>
+                  <div className="flex items-center justify-between"><span className="text-muted-foreground">+90 días</span><span className="font-semibold tabular-nums text-red-600">{formatCurrency(data.analytics.debtAging.buckets.over90)}</span></div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-base font-semibold">Ingresos y gastos (6 meses)</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {data.analytics.monthly.map((row) => {
+                  const max = Math.max(...data.analytics!.monthly.map((item) => Math.max(item.income, item.expenses)), 1);
+                  return (
+                    <div key={row.month} className="space-y-1">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{row.month}</span>
+                        <span className="tabular-nums">{formatCurrency(row.income)} · -{formatCurrency(row.expenses)}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <div className="h-2 rounded-full bg-emerald-500" style={{ width: `${(row.income / max) * 100}%` }} />
+                        <div className="h-2 rounded-full bg-red-400" style={{ width: `${(row.expenses / max) * 100}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle className="text-base font-semibold">Rentabilidad por inmueble</CardTitle></CardHeader>
+              <CardContent>
+                {data.analytics.propertyPerformance.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">Sin datos de rentabilidad</p>
+                ) : (
+                  <div className="space-y-2">
+                    {data.analytics.propertyPerformance.slice(0, 6).map((row) => (
+                      <Link key={row.propertyId} href={`/dashboard/inmuebles/${row.propertyId}`} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 transition-colors hover:border-primary/50 hover:bg-muted/40">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{row.code} · {row.title}</p>
+                          <p className="text-xs text-muted-foreground">Ingresos {formatCurrency(row.income, row.currency)} · Gastos {formatCurrency(row.expenses, row.currency)}</p>
+                        </div>
+                        <span className={cn("shrink-0 text-sm font-semibold tabular-nums", row.net >= 0 ? "text-emerald-600" : "text-red-600")}>
+                          {formatCurrency(row.net, row.currency)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 md:col-span-2 lg:col-span-4 border-border/60 shadow-card">
