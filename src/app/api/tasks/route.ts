@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 import { validationError } from "@/lib/validation";
 import { requiredDate, optionalDate, spanishEnum } from "@/lib/schemas";
@@ -28,7 +29,6 @@ const createSchema = z.object({
   providerId: z.string().uuid().optional().nullable(),
   assetId: z.string().uuid().optional().nullable(),
   assigneeId: z.string().uuid().optional().nullable(),
-  createdById: z.string().uuid().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -93,9 +93,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = createSchema.parse(await request.json());
+    const user = await getCurrentUser();
     const task = await prisma.task.create({
       data: {
         ...data,
+        createdById: user?.id ?? null,
         category: data.category as Prisma.TaskCreateInput["category"],
         status: data.status as Prisma.TaskCreateInput["status"],
         priority: data.priority as Prisma.TaskCreateInput["priority"],

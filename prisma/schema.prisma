@@ -532,6 +532,10 @@ model Property {
   updatedAt                DateTime              @updatedAt @map("updated_at")
   deletedAt                DateTime?             @map("deleted_at")
 
+  @@index([ownerId])
+  @@index([status])
+  @@index([propertyType])
+  @@index([deletedAt])
   @@map("properties")
 }
 
@@ -677,6 +681,12 @@ model Lease {
   updatedAt            DateTime                 @updatedAt @map("updated_at")
   deletedAt            DateTime?                @map("deleted_at")
 
+  @@index([propertyId])
+  @@index([contractStatus])
+  @@index([endDate])
+  @@index([nextAdjustmentDate])
+  @@index([deletedAt])
+  @@index([isActive, endDate])
   @@map("leases")
 }
 
@@ -685,7 +695,7 @@ model LeaseClient {
   leaseId   String        @map("lease_id")
   lease     Lease         @relation(fields: [leaseId], references: [id], onDelete: Cascade)
   clientId  String        @map("client_id")
-  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client    ClientProfile @relation(fields: [clientId], references: [id], onDelete: Restrict)
   role      ClientRole    @default(TENANT)
   createdAt DateTime      @default(now()) @map("created_at")
 
@@ -791,6 +801,12 @@ model Transaction {
   createdAt       DateTime        @default(now()) @map("created_at")
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
+  @@index([propertyId])
+  @@index([leaseId])
+  @@index([paymentDate])
+  @@index([status])
+  @@index([category])
+  @@index([propertyId, paymentDate])
   @@map("transactions")
 }
 
@@ -856,6 +872,9 @@ model PropertyIssue {
   createdAt        DateTime            @default(now()) @map("created_at")
   updatedAt        DateTime            @updatedAt @map("updated_at")
 
+  @@index([propertyId])
+  @@index([status])
+  @@index([reportDate])
   @@map("property_issues")
 }
 

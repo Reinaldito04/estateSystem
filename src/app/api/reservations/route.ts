@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 import { validationError } from "@/lib/validation";
 import { requiredDate } from "@/lib/schemas";
@@ -14,7 +15,6 @@ const createSchema = z.object({
   endDate: requiredDate("La fecha de fin es requerida"),
   clientId: z.string().uuid().optional().nullable(),
   notes: z.string().optional(),
-  createdById: z.string().uuid().optional(),
 });
 
 async function findOverlap(propertyId: string, startDate: Date, endDate: Date, excludeId?: string) {
@@ -77,10 +77,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "El inmueble ya tiene una reserva en ese rango de fechas" }, { status: 409 });
     }
 
+    const user = await getCurrentUser();
     const reservation = await prisma.propertyReservation.create({
       data: {
         ...data,
         clientId: data.clientId || null,
+        createdById: user?.id ?? null,
       },
       include: {
         property: { select: { id: true, code: true, title: true } },

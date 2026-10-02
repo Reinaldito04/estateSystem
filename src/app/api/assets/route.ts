@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 import { validationError } from "@/lib/validation";
 
@@ -20,7 +21,7 @@ const createSchema = z.object({
   purchaseValue: z.number().min(0).optional().nullable(),
   currency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).default("USD"),
   notes: z.string().optional(),
-  createdById: z.string().uuid().optional(),
+
 });
 
 export async function GET(request: NextRequest) {
@@ -64,11 +65,13 @@ export async function POST(request: NextRequest) {
     const property = await prisma.property.findUnique({ where: { id: data.propertyId }, select: { id: true } });
     if (!property) return NextResponse.json({ error: "Inmueble no encontrado" }, { status: 404 });
 
+    const user = await getCurrentUser();
     const asset = await prisma.asset.create({
       data: {
         ...data,
         purchaseValue: data.purchaseValue === undefined || data.purchaseValue === null ? null : new Prisma.Decimal(data.purchaseValue),
         purchaseDate: data.purchaseDate ?? null,
+        createdById: user?.id ?? null,
       },
       include: { property: { select: { id: true, code: true, title: true } } },
     });

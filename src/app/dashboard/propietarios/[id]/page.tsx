@@ -184,7 +184,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
       setDocumentName("");
       await loadOwner();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Error al subir el documento");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error al subir el documento", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }

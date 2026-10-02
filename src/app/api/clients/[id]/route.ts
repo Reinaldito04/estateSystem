@@ -34,8 +34,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const client = await prisma.clientProfile.findUnique({
-      where: { id },
+    const client = await prisma.clientProfile.findFirst({
+      where: { id, deletedAt: null },
       include: {
         references: { orderBy: { createdAt: "desc" } },
         communications: { orderBy: { createdAt: "desc" } },
@@ -167,13 +167,23 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const client = await prisma.clientProfile.findUnique({ where: { id } });
+    const client = await prisma.clientProfile.findFirst({ where: { id, deletedAt: null } });
 
     if (!client) {
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
     }
 
-    await prisma.clientProfile.delete({ where: { id } });
+    const activeLeases = await prisma.leaseClient.count({
+      where: { clientId: id, role: "TENANT", lease: { isActive: true, deletedAt: null } },
+    });
+    if (activeLeases > 0) {
+      return NextResponse.json(
+        { error: `No se puede eliminar el cliente: tiene ${activeLeases} contrato(s) activo(s).` },
+        { status: 409 },
+      );
+    }
+
+    await prisma.clientProfile.update({ where: { id }, data: { deletedAt: new Date(), status: "ARCHIVED" } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting client:", error);

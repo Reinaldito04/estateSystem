@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 import { validationError } from "@/lib/validation";
 
@@ -17,7 +18,7 @@ const createSchema = z.object({
   rating: z.number().int().min(1).max(5).optional().nullable(),
   notes: z.string().optional(),
   isActive: z.boolean().default(true),
-  createdById: z.string().uuid().optional(),
+
 });
 
 export async function GET(request: NextRequest) {
@@ -57,8 +58,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = createSchema.parse(await request.json());
+    const user = await getCurrentUser();
     const provider = await prisma.serviceProvider.create({
-      data: { ...data, email: data.email || null, rating: data.rating ?? null },
+      data: { ...data, email: data.email || null, rating: data.rating ?? null, createdById: user?.id ?? null },
     });
     await recordAudit({ entityType: "ServiceProvider", entityId: provider.id, action: "CREATE", changes: { companyName: provider.companyName }, request });
     return NextResponse.json(provider, { status: 201 });

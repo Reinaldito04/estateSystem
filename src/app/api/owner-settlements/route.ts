@@ -5,13 +5,14 @@ import { prisma } from "@/lib/prisma";
 import { buildOwnerSettlement } from "@/lib/owner-settlement";
 import { nextDocumentNumber } from "@/lib/document-sequence";
 import { recordAudit } from "@/lib/audit";
-import { handleRouteError } from "@/lib/domain-error";
+import { DomainError, handleRouteError } from "@/lib/domain-error";
 import { getCurrentUser } from "@/lib/session";
+import { requiredDate } from "@/lib/schemas";
 
 const createSchema = z.object({
   ownerId: z.string().uuid("Propietario inválido"),
-  periodStart: z.string().min(1, "Fecha de inicio requerida"),
-  periodEnd: z.string().min(1, "Fecha de fin requerida"),
+  periodStart: requiredDate("Fecha de inicio requerida"),
+  periodEnd: requiredDate("Fecha de fin requerida"),
   currency: z.string().default("USD"),
   commissionRate: z.number().min(0).max(1).optional(),
   notes: z.string().optional(),
@@ -45,13 +46,18 @@ export async function POST(request: NextRequest) {
   try {
     const body = createSchema.parse(await request.json());
 
-    const result = await buildOwnerSettlement({
-      ownerId: body.ownerId,
-      periodStart: body.periodStart,
-      periodEnd: body.periodEnd,
-      currency: body.currency,
-      commissionRate: body.commissionRate,
-    });
+    let result;
+    try {
+      result = await buildOwnerSettlement({
+        ownerId: body.ownerId,
+        periodStart: body.periodStart,
+        periodEnd: body.periodEnd,
+        currency: body.currency,
+        commissionRate: body.commissionRate,
+      });
+    } catch (domainError) {
+      throw new DomainError(domainError instanceof Error ? domainError.message : "No se pudo generar la liquidación");
+    }
 
     const user = await getCurrentUser();
     const settlementNumber = await nextDocumentNumber("OWNER_SETTLEMENT", result.periodEnd);

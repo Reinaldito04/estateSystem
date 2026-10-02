@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { ClientProfile } from "../types";
 import { getApiError } from "@/lib/api-error";
+import { useToast } from "@/hooks/use-toast";
 import { DetailPageSkeleton } from "@/components/shared/skeletons";
 
 const emptyReferenceForm = {
@@ -139,6 +140,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
   const [riskFile, setRiskFile] = useState<File | null>(null);
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [documentName, setDocumentName] = useState("");
+  const { toast } = useToast();
 
   const refreshClient = async () => {
     const response = await fetch(`/api/clients/${clientId}`);
@@ -163,7 +165,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       setReferenceForm(emptyReferenceForm);
       await refreshClient();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Error al guardar la referencia");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error al guardar la referencia", variant: "destructive" });
     }
   };
 
@@ -183,14 +185,14 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       setCommunicationForm(emptyCommunicationForm);
       await refreshClient();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Error al guardar la comunicación");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error al guardar la comunicación", variant: "destructive" });
     }
   };
 
   const handleAddDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!riskFile) {
-      alert("Seleccione el archivo del documento de riesgo");
+      toast({ title: "Atención", description: "Seleccione el archivo del documento de riesgo", variant: "destructive" });
       return;
     }
 
@@ -214,14 +216,14 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       setRiskFile(null);
       await refreshClient();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Error al guardar el documento");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error al guardar el documento", variant: "destructive" });
     }
   };
 
   const handleUploadDocument = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!documentFile) {
-      alert("Seleccione un archivo");
+      toast({ title: "Atención", description: "Seleccione un archivo", variant: "destructive" });
       return;
     }
 
@@ -243,7 +245,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       setDocumentName("");
       await refreshClient();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Error al subir el documento");
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Error al subir el documento", variant: "destructive" });
     }
   };
 

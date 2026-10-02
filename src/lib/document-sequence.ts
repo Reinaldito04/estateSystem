@@ -7,11 +7,18 @@ const SEQUENCE_DEFAULTS: Record<SequenceKey, { prefix: string; width: number }> 
   OWNER_SETTLEMENT: { prefix: "LIQ", width: 4 },
 };
 
-export async function nextDocumentNumber(key: SequenceKey, reference = new Date()): Promise<string> {
+export function buildSequenceKey(key: SequenceKey, reference = new Date()): { sequenceKey: string; prefix: string } {
   const defaults = SEQUENCE_DEFAULTS[key];
   const year = reference.getFullYear();
-  const sequenceKey = `${key}-${year}`;
-  const prefix = `${defaults.prefix}-${year}-`;
+  return { sequenceKey: `${key}-${year}`, prefix: `${defaults.prefix}-${year}-` };
+}
+
+export function formatDocumentNumber(key: SequenceKey, prefix: string, value: number): string {
+  return `${prefix}${String(value).padStart(SEQUENCE_DEFAULTS[key].width, "0")}`;
+}
+
+export async function nextDocumentNumber(key: SequenceKey, reference = new Date()): Promise<string> {
+  const { sequenceKey, prefix } = buildSequenceKey(key, reference);
 
   const sequence = await prisma.$transaction(async (tx) => {
     const existing = await tx.documentSequence.findUnique({ where: { key: sequenceKey } });
@@ -27,5 +34,5 @@ export async function nextDocumentNumber(key: SequenceKey, reference = new Date(
   });
 
   const value = sequence.nextValue - 1;
-  return `${prefix}${String(value).padStart(defaults.width, "0")}`;
+  return formatDocumentNumber(key, prefix, value);
 }

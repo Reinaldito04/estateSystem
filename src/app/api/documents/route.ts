@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/session";
 import { z } from "zod";
 import { DomainError, handleRouteError } from "@/lib/domain-error";
 
@@ -17,7 +18,6 @@ const documentSchema = z.object({
   entityId: z.string().uuid("ID de entidad es requerido"),
   documentName: z.string().min(1, "Nombre del documento es requerido"),
   fileUrl: z.string().min(1, "URL del archivo es requerida"),
-  uploadedById: z.string().uuid().optional(),
 });
 
 type DocumentRecord = {
@@ -66,12 +66,13 @@ export async function POST(request: NextRequest) {
     await assertDocumentEntity(validatedData.entityType, validatedData.entityId);
     const relationField = ENTITY_FIELD[validatedData.entityType];
 
+    const user = await getCurrentUser();
     const document = await prisma.entityDocument.create({
       data: {
         entityType: validatedData.entityType,
         documentName: validatedData.documentName,
         fileUrl: validatedData.fileUrl,
-        uploadedById: validatedData.uploadedById,
+        uploadedById: user?.id ?? null,
         [relationField]: validatedData.entityId,
       },
     });

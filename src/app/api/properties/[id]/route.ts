@@ -50,8 +50,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const property = await prisma.property.findUnique({
-      where: { id },
+    const property = await prisma.property.findFirst({
+      where: { id, deletedAt: null },
       include: {
         owner: true,
         photos: { orderBy: { uploadedAt: "asc" } },
@@ -176,8 +176,8 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const property = await prisma.property.findUnique({
-      where: { id },
+    const property = await prisma.property.findFirst({
+      where: { id, deletedAt: null },
       include: { leases: true, transactions: true, issues: true, photos: true, documents: true },
     });
 
@@ -198,7 +198,7 @@ export async function DELETE(
       .map((fileUrl) => fileUrl.slice(filePrefix.length))
       .filter(isValidPropertyFilename);
 
-    await prisma.property.delete({ where: { id } });
+    await prisma.property.update({ where: { id }, data: { deletedAt: new Date() } });
     await Promise.all(filenames.map((filename) =>
       removePropertyFile(id, filename).catch((error) => {
         console.error("Error removing property file:", error);

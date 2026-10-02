@@ -133,8 +133,8 @@ export async function DELETE(
     const { id } = await params;
 
     const owner = await prisma.clientProfile.findFirst({
-      where: { id, role: "OWNER" },
-      include: { properties: true },
+      where: { id, role: "OWNER", deletedAt: null },
+      include: { properties: { where: { deletedAt: null } } },
     });
 
     if (!owner) {
@@ -148,7 +148,7 @@ export async function DELETE(
       );
     }
 
-    await prisma.clientProfile.delete({ where: { id } });
+    await prisma.clientProfile.update({ where: { id }, data: { deletedAt: new Date(), status: "ARCHIVED" } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting owner:", error);
