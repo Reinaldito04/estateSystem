@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -19,7 +18,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -28,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Search,
@@ -37,12 +36,13 @@ import {
   Loader2,
   FolderOpen,
   FileText,
-  X,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { getApiError } from "@/lib/api-error";
+import DOMPurify from "isomorphic-dompurify";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 interface Document {
   id: string;
@@ -215,7 +215,7 @@ export default function DocumentsPage() {
 
   const handlePreview = (document: Document) => {
     setPreviewTitle(document.documentName);
-    setPreviewContent(document.fileUrl);
+    setPreviewContent(DOMPurify.sanitize(document.fileUrl));
     setIsPreviewOpen(true);
   };
 
@@ -295,16 +295,32 @@ export default function DocumentsPage() {
                 {formData.entityType && (
                   <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
                     <span>Entidad:</span>
-                    <Select value={formData.entityId} onValueChange={(v) => setFormData({ ...formData, entityId: v })}>
-                      <SelectTrigger className="h-8 w-48">
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getEntitiesForType(formData.entityType).map((e) => (
-                          <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      value={formData.entityId}
+                      onValueChange={(v) => setFormData({ ...formData, entityId: v })}
+                      placeholder="Seleccionar"
+                      searchPlaceholder="Buscar entidad…"
+                      className="h-8 w-48"
+                      options={getEntitiesForType(formData.entityType).map((e) => ({ value: e.id, label: e.name }))}
+                      onSearch={async (query) => {
+                        const q = encodeURIComponent(query);
+                        const endpointByType: Record<string, string> = {
+                          OWNER: `/api/owners?search=${q}&limit=20`,
+                          TENANT: `/api/clients?role=TENANT&search=${q}&limit=20`,
+                          PROPERTY: `/api/properties?search=${q}&limit=20`,
+                          LEASE: `/api/leases?search=${q}&limit=20`,
+                        };
+                        const endpoint = endpointByType[formData.entityType];
+                        if (!endpoint) return [];
+                        const response = await fetch(endpoint);
+                        if (!response.ok) return [];
+                        const data = await response.json();
+                        return (data.data ?? []).map((item: { id: string; fullName?: string; code?: string; title?: string; contractNumber?: string }) => ({
+                          value: item.id,
+                          label: item.fullName ?? (item.code && item.title ? `${item.code} - ${item.title}` : item.contractNumber ?? item.id),
+                        }));
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -387,9 +403,7 @@ export default function DocumentsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <TableSkeleton rows={6} columns={5} />
           ) : documents.length === 0 ? (
             <div className="text-center py-12">
               <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

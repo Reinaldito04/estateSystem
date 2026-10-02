@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Search,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiError } from "@/lib/api-error";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 interface Transaction {
   id: string;
@@ -347,30 +349,41 @@ export default function TransactionsPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="propertyId">Inmueble *</Label>
-                  <Select value={formData.propertyId} onValueChange={(v) => setFormData({ ...formData, propertyId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar inmueble" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.code} - {p.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="propertyId"
+                    value={formData.propertyId}
+                    onValueChange={(v) => setFormData({ ...formData, propertyId: v })}
+                    placeholder="Seleccionar inmueble"
+                    searchPlaceholder="Buscar por código o título…"
+                    aria-invalid={Boolean(fieldErrors.propertyId)}
+                    options={properties.map((p) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((p: { id: string; code: string; title: string }) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }));
+                    }}
+                  />
                   <FieldError message={fieldErrors.propertyId} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="leaseId">Contrato (opcional)</Label>
-                  <Select value={formData.leaseId} onValueChange={(v) => setFormData({ ...formData, leaseId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar contrato" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {leases.map((l) => (
-                        <SelectItem key={l.id} value={l.id}>{l.contractNumber}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="leaseId"
+                    value={formData.leaseId}
+                    onValueChange={(v) => setFormData({ ...formData, leaseId: v })}
+                    placeholder="Seleccionar contrato"
+                    searchPlaceholder="Buscar contrato…"
+                    clearable
+                    clearLabel="Sin contrato"
+                    options={leases.map((l) => ({ value: l.id, label: l.contractNumber }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/leases?search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((l: { id: string; contractNumber: string }) => ({ value: l.id, label: l.contractNumber }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="category">Categoría *</Label>
@@ -589,36 +602,44 @@ export default function TransactionsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={propertyFilter} onValueChange={(value) => setPropertyFilter(value === "all" ? "" : value)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Inmueble" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los inmuebles</SelectItem>
-                  {properties.map((property) => (
-                    <SelectItem key={property.id} value={property.id}>{property.code} - {property.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={leaseFilter} onValueChange={handleLeaseFilterChange}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Contrato" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos los contratos</SelectItem>
-                  {leases.map((lease) => (
-                    <SelectItem key={lease.id} value={lease.id}>{lease.contractNumber}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={propertyFilter}
+                onValueChange={setPropertyFilter}
+                placeholder="Inmueble"
+                searchPlaceholder="Buscar inmueble…"
+                clearable
+                clearLabel="Todos los inmuebles"
+                className="w-48"
+                options={properties.map((property) => ({ value: property.id, label: `${property.code} - ${property.title}`, keywords: `${property.code} ${property.title}` }))}
+                onSearch={async (query) => {
+                  const response = await fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=20`);
+                  if (!response.ok) return [];
+                  const data = await response.json();
+                  return (data.data ?? []).map((p: { id: string; code: string; title: string }) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }));
+                }}
+              />
+              <SearchableSelect
+                value={leaseFilter}
+                onValueChange={handleLeaseFilterChange}
+                placeholder="Contrato"
+                searchPlaceholder="Buscar contrato…"
+                clearable
+                clearLabel="Todos los contratos"
+                className="w-48"
+                options={leases.map((lease) => ({ value: lease.id, label: lease.contractNumber }))}
+                onSearch={async (query) => {
+                  const response = await fetch(`/api/leases?search=${encodeURIComponent(query)}&limit=20`);
+                  if (!response.ok) return [];
+                  const data = await response.json();
+                  return (data.data ?? []).map((l: { id: string; contractNumber: string }) => ({ value: l.id, label: l.contractNumber }));
+                }}
+              />
             </div>
           </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <TableSkeleton rows={8} columns={12} />
           ) : transactions.length === 0 ? (
             <div className="text-center py-8">
               <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

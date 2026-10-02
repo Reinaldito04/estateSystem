@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Calculator,
   TrendingUp,
@@ -272,48 +273,60 @@ export default function AccountStatementsPage() {
             {scope === "PROPERTY" && (
               <div className="space-y-2">
                 <Label htmlFor="propertyId">Inmueble *</Label>
-                <Select value={propertyId} onValueChange={setPropertyId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar inmueble" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.code} - {p.title}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="propertyId"
+                  value={propertyId}
+                  onValueChange={setPropertyId}
+                  placeholder="Seleccionar inmueble"
+                  searchPlaceholder="Buscar por código o título…"
+                  options={properties.map((p) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }))}
+                  onSearch={async (query) => {
+                    const response = await fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=20`);
+                    if (!response.ok) return [];
+                    const data = await response.json();
+                    return (data.data ?? []).map((p: { id: string; code: string; title: string }) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }));
+                  }}
+                />
               </div>
             )}
 
             {scope === "OWNER" && (
               <div className="space-y-2">
                 <Label htmlFor="ownerId">Propietario *</Label>
-                <Select value={ownerId} onValueChange={setOwnerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar propietario" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {owners.map((o) => (
-                      <SelectItem key={o.id} value={o.id}>{o.fullName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="ownerId"
+                  value={ownerId}
+                  onValueChange={setOwnerId}
+                  placeholder="Seleccionar propietario"
+                  searchPlaceholder="Buscar propietario…"
+                  options={owners.map((o) => ({ value: o.id, label: o.fullName }))}
+                  onSearch={async (query) => {
+                    const response = await fetch(`/api/owners?search=${encodeURIComponent(query)}&limit=20`);
+                    if (!response.ok) return [];
+                    const data = await response.json();
+                    return (data.data ?? []).map((o: { id: string; fullName: string }) => ({ value: o.id, label: o.fullName }));
+                  }}
+                />
               </div>
             )}
 
             {scope === "TENANT" && (
               <div className="space-y-2">
                 <Label htmlFor="tenantId">Inquilino *</Label>
-                <Select value={tenantId} onValueChange={setTenantId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar inquilino" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  id="tenantId"
+                  value={tenantId}
+                  onValueChange={setTenantId}
+                  placeholder="Seleccionar inquilino"
+                  searchPlaceholder="Buscar inquilino…"
+                  options={tenants.map((t) => ({ value: t.id, label: t.fullName }))}
+                  onSearch={async (query) => {
+                    const response = await fetch(`/api/clients?role=TENANT&search=${encodeURIComponent(query)}&limit=20`);
+                    if (!response.ok) return [];
+                    const data = await response.json();
+                    return (data.data ?? []).map((t: { id: string; fullName: string }) => ({ value: t.id, label: t.fullName }));
+                  }}
+                />
               </div>
             )}
 

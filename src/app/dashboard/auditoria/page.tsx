@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 interface AuditLog {
   id: string;
@@ -72,9 +73,11 @@ export function useAuditLogs() {
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Función para cargar los logs con los filtros actuales
   const loadLogs = async (currentFilters: typeof filters) => {
+    setIsLoading(true);
     try {
       const params = new URLSearchParams();
       if (currentFilters.entityType) params.set("entityType", currentFilters.entityType);
@@ -100,6 +103,8 @@ export function useAuditLogs() {
       // En caso de error también garantizamos que logs/total queden en un estado válido
       setLogs([]);
       setTotal(0);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -137,6 +142,7 @@ export function useAuditLogs() {
   return {
     logs,
     total,
+    isLoading,
     filters,
     ENTITY_TYPE_OPTS,
     statusBadgeClass,
@@ -294,10 +300,11 @@ function AuditFiltersPanel({
   );
 }
 
-export default function AuditDashboardPage() {
+function AuditDashboardPage() {
   const {
     logs,
     total,
+    isLoading,
     filters,
     ENTITY_TYPE_OPTS,
     handleInputChange,
@@ -323,16 +330,28 @@ export default function AuditDashboardPage() {
       />
 
       <div className="mt-6">
-        <Table>
-          <AuditLogsTable logs={safeLogs} />
-        </Table>
+        {isLoading ? (
+          <TableSkeleton rows={8} columns={7} />
+        ) : (
+          <Table>
+            <AuditLogsTable logs={safeLogs} />
+          </Table>
+        )}
 
-        {total > 0 && (
+        {!isLoading && total > 0 && (
           <p className="mt-3 text-sm text-muted-foreground">
             Mostrando {safeLogs.length} de {total} entradas de auditoría
           </p>
         )}
       </div>
     </div>
+  );
+}
+
+export default function AuditDashboardPageWrapper() {
+  return (
+    <Suspense fallback={<div className="p-6">Cargando auditoría...</div>}>
+      <AuditDashboardPage />
+    </Suspense>
   );
 }

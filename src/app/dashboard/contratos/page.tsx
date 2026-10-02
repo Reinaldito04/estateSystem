@@ -29,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Search,
@@ -43,6 +44,7 @@ import {
 import { formatCurrency, formatDate, calculateDaysUntil } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiError } from "@/lib/api-error";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 interface Lease {
   id: string;
@@ -377,29 +379,37 @@ export default function LeasesPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="propertyId">Inmueble *</Label>
-                  <Select value={formData.propertyId} onValueChange={(v) => setFormData({ ...formData, propertyId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar inmueble" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.code} - {p.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="propertyId"
+                    value={formData.propertyId}
+                    onValueChange={(v) => setFormData({ ...formData, propertyId: v })}
+                    placeholder="Seleccionar inmueble"
+                    searchPlaceholder="Buscar por código o título…"
+                    options={properties.map((p) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((p: Property) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="clientProfileId">Cliente inquilino *</Label>
-                  <Select value={formData.clientProfileId} onValueChange={(v) => setFormData({ ...formData, clientProfileId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>{client.fullName} · {client.legalDocumentId}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="clientProfileId"
+                    value={formData.clientProfileId}
+                    onValueChange={(v) => setFormData({ ...formData, clientProfileId: v })}
+                    placeholder="Seleccionar cliente"
+                    searchPlaceholder="Buscar por nombre o documento…"
+                    options={clients.map((client) => ({ value: client.id, label: client.fullName, description: client.legalDocumentId || undefined, keywords: client.legalDocumentId ?? "" }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/clients?role=TENANT&search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((client: Client) => ({ value: client.id, label: client.fullName, description: client.legalDocumentId || undefined, keywords: client.legalDocumentId ?? "" }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="contractNumber">Número de Contrato *</Label>
@@ -578,9 +588,7 @@ export default function LeasesPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <TableSkeleton rows={8} columns={9} />
           ) : leases.length === 0 ? (
             <div className="text-center py-8">
               <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

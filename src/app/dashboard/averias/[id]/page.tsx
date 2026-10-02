@@ -13,9 +13,10 @@ import {
   Wrench,
   DollarSign,
   FileText,
-  Loader2,
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { PageHeader, DetailSection } from "@/components/shared/page-header";
+import { DetailPageSkeleton } from "@/components/shared/skeletons";
 
 interface Issue {
   id: string;
@@ -65,11 +66,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   }, [id]);
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   if (!issue) {
@@ -87,18 +84,19 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button asChild variant="ghost" size="icon">
-          <Link href="/dashboard/averias">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Avería - {issue.issueType}</h1>
-          <p className="text-muted-foreground">Reportada el {formatDate(issue.reportDate)}</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-7xl space-y-6 pb-10">
+      <PageHeader
+        backHref="/dashboard/averias"
+        backLabel="Averías"
+        eyebrow={issue.property.code}
+        title={`Avería · ${issue.issueType}`}
+        description={`Reportada el ${formatDate(issue.reportDate)}`}
+        actions={
+          <Badge variant={issue.status === "RESOLVED" ? "success" : issue.status === "IN_PROGRESS" ? "default" : "secondary"} className="px-3 py-1.5 text-sm">
+            {issue.status === "REPORTED" ? "Reportada" : issue.status === "IN_PROGRESS" ? "En Proceso" : issue.status === "RESOLVED" ? "Resuelta" : "Cancelada"}
+          </Badge>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -159,6 +157,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
       </div>
 
+      <DetailSection title="Detalle del registro" eyebrow="Seguimiento">
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -222,6 +221,7 @@ export default function IssueDetailPage({ params }: { params: Promise<{ id: stri
           </CardContent>
         </Card>
       </div>
+      </DetailSection>
 
       <Card>
         <CardHeader>

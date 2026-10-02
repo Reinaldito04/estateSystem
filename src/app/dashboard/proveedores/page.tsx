@@ -11,6 +11,7 @@ import { Building2, Plus, Trash2, Pencil, Star } from "lucide-react";
 import { PROVIDER_TYPES, labelOf } from "@/lib/management";
 import { useToast } from "@/hooks/use-toast";
 import { getApiError } from "@/lib/api-error";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 type Provider = {
   id: string;
@@ -46,6 +47,7 @@ export default function ProvidersPage() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
@@ -65,7 +67,10 @@ export default function ProvidersPage() {
       .then((result) => {
         if (isCurrent) setProviders(result.data ?? []);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
     return () => {
       isCurrent = false;
     };
@@ -162,7 +167,9 @@ export default function ProvidersPage() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Building2 className="h-4 w-4" /> Directorio</CardTitle></CardHeader>
         <CardContent>
-          {providers.length === 0 ? (
+          {isLoading ? (
+            <TableSkeleton rows={6} columns={7} />
+          ) : providers.length === 0 ? (
             <p className="text-sm text-muted-foreground">Sin proveedores registrados.</p>
           ) : (
             <div className="overflow-x-auto">

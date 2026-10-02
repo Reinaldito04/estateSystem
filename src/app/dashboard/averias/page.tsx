@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Search,
@@ -46,6 +47,7 @@ import {
 import { formatCurrency, formatDate, ISSUE_STATUSES } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiError } from "@/lib/api-error";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 interface Issue {
   id: string;
@@ -315,29 +317,39 @@ export default function IssuesPage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="propertyId">Inmueble *</Label>
-                  <Select value={formData.propertyId} onValueChange={(v) => setFormData({ ...formData, propertyId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar inmueble" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.code} - {p.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="propertyId"
+                    value={formData.propertyId}
+                    onValueChange={(v) => setFormData({ ...formData, propertyId: v })}
+                    placeholder="Seleccionar inmueble"
+                    searchPlaceholder="Buscar por código o título…"
+                    options={properties.map((p) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/properties?search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((p: { id: string; code: string; title: string }) => ({ value: p.id, label: `${p.code} - ${p.title}`, keywords: `${p.code} ${p.title}` }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tenantId">Inquilino</Label>
-                  <Select value={formData.tenantId} onValueChange={(v) => setFormData({ ...formData, tenantId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar inquilino" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenants.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>{t.fullName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="tenantId"
+                    value={formData.tenantId}
+                    onValueChange={(v) => setFormData({ ...formData, tenantId: v })}
+                    placeholder="Seleccionar inquilino"
+                    searchPlaceholder="Buscar inquilino…"
+                    clearable
+                    clearLabel="Sin inquilino"
+                    options={tenants.map((t) => ({ value: t.id, label: t.fullName }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/clients?role=TENANT&search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((t: { id: string; fullName: string }) => ({ value: t.id, label: t.fullName }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="issueType">Tipo de Avería *</Label>
@@ -388,17 +400,22 @@ export default function IssuesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="providerId">Proveedor asignado</Label>
-                  <Select value={formData.providerId || "none"} onValueChange={(v) => setFormData({ ...formData, providerId: v === "none" ? "" : v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin proveedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Sin proveedor</SelectItem>
-                      {providers.map((provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>{provider.companyName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="providerId"
+                    value={formData.providerId}
+                    onValueChange={(v) => setFormData({ ...formData, providerId: v })}
+                    placeholder="Sin proveedor"
+                    searchPlaceholder="Buscar proveedor…"
+                    clearable
+                    clearLabel="Sin proveedor"
+                    options={providers.map((provider) => ({ value: provider.id, label: provider.companyName }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/providers?active=true&search=${encodeURIComponent(query)}`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((provider: { id: string; companyName: string }) => ({ value: provider.id, label: provider.companyName }));
+                    }}
+                  />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="description">Descripción *</Label>
@@ -544,9 +561,7 @@ export default function IssuesPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <TableSkeleton rows={8} columns={7} />
           ) : issues.length === 0 ? (
             <div className="text-center py-8">
               <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

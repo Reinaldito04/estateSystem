@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { ClientProfile } from "../types";
 import { getApiError } from "@/lib/api-error";
+import { DetailPageSkeleton } from "@/components/shared/skeletons";
 
 const emptyReferenceForm = {
   referenceType: "PERSONAL",
@@ -270,7 +271,7 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
   }, [clientId]);
 
   if (isLoading) {
-    return <div className="py-10 text-center text-muted-foreground">Cargando expediente del cliente…</div>;
+    return <DetailPageSkeleton />;
   }
 
   if (!client) {

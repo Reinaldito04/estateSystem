@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
-import { Building2, Edit, Eye, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, Edit, Eye, Plus, Search, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { TableSkeleton } from "@/components/shared/skeletons";
 import type { ClientProfile, Pagination } from "../types";
 
 interface ClientsTableProps {
@@ -72,9 +73,7 @@ export function ClientsTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+          <TableSkeleton rows={8} columns={7} />
         ) : clients.length === 0 ? (
           <div className="py-8 text-center">
             <Building2 className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />

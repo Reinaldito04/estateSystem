@@ -4,7 +4,7 @@ import { z } from "zod";
 import { recordAudit } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/session";
 import { handleRouteError } from "@/lib/domain-error";
-import { requiredDate, optionalDate } from "@/lib/schemas";
+import { optionalDate } from "@/lib/schemas";
 import { Prisma } from "@prisma/client";
 
 const issueUpdateSchema = z.object({

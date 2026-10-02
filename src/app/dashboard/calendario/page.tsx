@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect, type SearchableSelectOption } from "@/components/ui/searchable-select";
 import {
   Dialog,
   DialogContent,
@@ -26,10 +27,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import type { CalendarEvent } from "@/components/calendar/calendar-view";
 import { getApiError } from "@/lib/api-error";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const CalendarView = dynamic(
   () => import("@/components/calendar/calendar-view").then((mod) => mod.CalendarView),
-  { ssr: false, loading: () => <p className="py-10 text-center text-sm text-muted-foreground">Cargando calendario…</p> },
+  { ssr: false, loading: () => <Skeleton className="h-[560px] w-full rounded-xl" /> },
 );
 
 type Option = { id: string; label: string; kind: "property" | "client" | "lease" | "provider" };
@@ -355,17 +357,44 @@ export default function CalendarPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="task-assignee">Responsable</Label>
-                <select id="task-assignee" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}>
-                  <option value="">Sin asignar</option>
-                  {users.map((user) => <option key={user.id} value={user.id}>{user.fullName}</option>)}
-                </select>
+                <SearchableSelect
+                  id="task-assignee"
+                  value={form.assigneeId}
+                  onValueChange={(v) => setForm({ ...form, assigneeId: v })}
+                  placeholder="Sin asignar"
+                  searchPlaceholder="Buscar responsable…"
+                  clearable
+                  clearLabel="Sin asignar"
+                  options={users.map((user) => ({ value: user.id, label: user.fullName }))}
+                />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="task-entity">Relacionado con</Label>
-                <select id="task-entity" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.entity} onChange={(e) => setForm({ ...form, entity: e.target.value })}>
-                  <option value="">General (sin entidad)</option>
-                  {options.map((option) => <option key={`${option.kind}:${option.id}`} value={`${option.kind}:${option.id}`}>{option.label}</option>)}
-                </select>
+                <SearchableSelect
+                  id="task-entity"
+                  value={form.entity}
+                  onValueChange={(v) => setForm({ ...form, entity: v })}
+                  placeholder="General (sin entidad)"
+                  searchPlaceholder="Buscar inmueble, cliente, contrato o proveedor…"
+                  clearable
+                  clearLabel="General (sin entidad)"
+                  options={options.map((option) => ({ value: `${option.kind}:${option.id}`, label: option.label }))}
+                  onSearch={async (query) => {
+                    const q = encodeURIComponent(query);
+                    const [propertiesRes, clientsRes, leasesRes, providersRes] = await Promise.all([
+                      fetch(`/api/properties?search=${q}&limit=10`).then((r) => (r.ok ? r.json() : { data: [] })),
+                      fetch(`/api/clients?search=${q}&limit=10`).then((r) => (r.ok ? r.json() : { data: [] })),
+                      fetch(`/api/leases?search=${q}&limit=10`).then((r) => (r.ok ? r.json() : { data: [] })),
+                      fetch(`/api/providers?active=true&search=${q}`).then((r) => (r.ok ? r.json() : { data: [] })),
+                    ]);
+                    const result: SearchableSelectOption[] = [];
+                    for (const item of propertiesRes.data ?? []) result.push({ value: `property:${item.id}`, label: `${item.code} · ${item.title}` });
+                    for (const item of clientsRes.data ?? []) result.push({ value: `client:${item.id}`, label: `Cliente: ${item.fullName}` });
+                    for (const item of leasesRes.data ?? []) result.push({ value: `lease:${item.id}`, label: `Contrato: ${item.contractNumber}` });
+                    for (const item of providersRes.data ?? []) result.push({ value: `provider:${item.id}`, label: `Proveedor: ${item.companyName}` });
+                    return result;
+                  }}
+                />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="task-description">Descripción</Label>

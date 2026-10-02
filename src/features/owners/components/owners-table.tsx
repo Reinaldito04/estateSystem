@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
-import { Building2, Edit, Eye, Loader2, Mail, Phone, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, Edit, Eye, Mail, Phone, Plus, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { TableSkeleton } from "@/components/shared/skeletons";
 import type { Owner, Pagination } from "../types";
 
 interface OwnersTableProps {
@@ -60,9 +61,7 @@ export function OwnersTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          </div>
+          <TableSkeleton rows={8} columns={5} />
         ) : owners.length === 0 ? (
           <div className="py-8 text-center">
             <Building2 className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />

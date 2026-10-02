@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { CalendarClock, Plus, XCircle, Pencil } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { RESERVATION_STATUSES, RESERVATION_TYPES, labelOf } from "@/lib/management";
@@ -137,10 +138,22 @@ export function PropertyReservationsPanel({ propertyId }: { propertyId: string }
           <div className="space-y-1"><Label htmlFor="res-end">Hasta *</Label><Input id="res-end" type="date" required value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></div>
           <div className="space-y-1">
             <Label htmlFor="res-client">Cliente (opcional)</Label>
-            <select id="res-client" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}>
-              <option value="">Sin cliente</option>
-              {clients.map((client) => <option key={client.id} value={client.id}>{client.fullName}</option>)}
-            </select>
+            <SearchableSelect
+              id="res-client"
+              value={form.clientId}
+              onValueChange={(v) => setForm({ ...form, clientId: v })}
+              placeholder="Sin cliente"
+              searchPlaceholder="Buscar cliente…"
+              clearable
+              clearLabel="Sin cliente"
+              options={clients.map((client) => ({ value: client.id, label: client.fullName }))}
+              onSearch={async (query) => {
+                const response = await fetch(`/api/clients?search=${encodeURIComponent(query)}&limit=20`);
+                if (!response.ok) return [];
+                const data = await response.json();
+                return (data.data ?? []).map((client: { id: string; fullName: string }) => ({ value: client.id, label: client.fullName }));
+              }}
+            />
           </div>
           <div className="space-y-1 md:col-span-2"><Label htmlFor="res-notes">Notas</Label><Input id="res-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
           <div className="flex gap-2 md:col-span-3">

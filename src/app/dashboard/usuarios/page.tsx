@@ -12,6 +12,7 @@ import { Users, Plus, Trash2, Pencil } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { getApiError } from "@/lib/api-error";
+import { TableSkeleton } from "@/components/shared/skeletons";
 
 const ROLE_OPTIONS = [
   { value: "ADMIN", label: "Administrador" },
@@ -45,6 +46,7 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
@@ -66,7 +68,10 @@ export default function UsersPage() {
       .then((result) => {
         if (isCurrent) setUsers(result.data ?? []);
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
     return () => {
       isCurrent = false;
     };
@@ -155,6 +160,9 @@ export default function UsersPage() {
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Users className="h-4 w-4" /> Equipo</CardTitle></CardHeader>
         <CardContent>
+          {isLoading ? (
+            <TableSkeleton rows={6} columns={isAdmin ? 6 : 5} />
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -188,6 +196,7 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

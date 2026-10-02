@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { parsePagination, MAX_PAGE_SIZE } from "@/lib/pagination";
+import { Prisma } from "@prisma/client";
+import { DomainError } from "@/lib/domain-error";
 
 export const AUDIT_ENTITY_TYPES = ["Lease", "Property", "Client", "Transaction", "Issue", "Task", "Asset", "Provider", "MaintenancePlan", "User", "ContractTemplate"] as const;
 
@@ -16,7 +18,7 @@ export async function buildAuditWhere(
   userId?: string,
   startDate?: Date,
   endDate?: Date,
-): Prisma.AuditLogWhereInput {
+): Promise<Prisma.AuditLogWhereInput> {
   const where: Prisma.AuditLogWhereInput = {};
 
   if (entityType) {
@@ -65,11 +67,12 @@ export type AuditLog = {
 
 export function formatChanges(changes: unknown): string {
   if (!changes) return "—";
-  if (typeof changes !== "object") return String(changes);
-  const keys = Object.keys(changes).slice(0, 3);
+  if (typeof changes !== "object" || Array.isArray(changes)) return String(changes);
+  const record = changes as Record<string, unknown>;
+  const keys = Object.keys(record).slice(0, 3);
   if (keys.length === 0) return "—";
-  const parts = keys.map((k) => `${k}: ${String(changes[k]).slice(0, 50)}`);
-  return parts.join(" | ") + (Object.keys(changes).length > 3 ? " + más" : "");
+  const parts = keys.map((k) => `${k}: ${String(record[k]).slice(0, 50)}`);
+  return parts.join(" | ") + (Object.keys(record).length > 3 ? " + más" : "");
 }
 
 export async function fetchAuditLogs(

@@ -68,7 +68,6 @@ export function useClients() {
   }, [pagination.page, pagination.limit, search, toast]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchClients();
   }, [fetchClients]);
 
@@ -103,11 +102,11 @@ export function useClients() {
           riskSummary: formData.riskSummary || undefined,
           notes: formData.notes || undefined,
           workPlace: formData.workPlace || undefined,
-          monthlyIncome: formData.monthlyIncome ? Number(formData.monthlyIncome) : undefined,
+          monthlyIncome: formData.monthlyIncome === "" ? undefined : Number(formData.monthlyIncome),
           emergencyContactName: formData.emergencyContactName || undefined,
           emergencyContactPhone: formData.emergencyContactPhone || undefined,
           preferredPropertyType: formData.preferredPropertyType || undefined,
-          maxBudget: formData.maxBudget ? Number(formData.maxBudget) : undefined,
+          maxBudget: formData.maxBudget === "" ? undefined : Number(formData.maxBudget),
           housingRequirement: formData.housingRequirement || undefined,
         }),
       });

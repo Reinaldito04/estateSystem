@@ -28,7 +28,7 @@ export async function GET() {
       prisma.propertyIssue.count({ where: { status: { in: ["REPORTED", "IN_PROGRESS"] } } }),
       prisma.transaction.groupBy({
         by: ["currency"],
-        where: { paymentDate: { gte: startOfMonth } },
+        where: { status: "PAID", paymentDate: { gte: startOfMonth } },
         _sum: { amount: true },
       }),
       prisma.transaction.findMany({

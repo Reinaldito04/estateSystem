@@ -22,9 +22,10 @@ import {
   CreditCard,
   Calendar,
   FileText,
-  Loader2,
 } from "lucide-react";
-import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { PageHeader, DetailSection } from "@/components/shared/page-header";
+import { DetailPageSkeleton } from "@/components/shared/skeletons";
 
 interface Owner {
   id: string;
@@ -104,11 +105,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   if (!owner) {
@@ -126,18 +123,15 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button asChild variant="ghost" size="icon">
-          <Link href="/dashboard/propietarios">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{owner.fullName}</h1>
-          <p className="text-muted-foreground">Propietario - {owner.documentId}</p>
-        </div>
-      </div>
+    <div className="mx-auto max-w-7xl space-y-6 pb-10">
+      <PageHeader
+        backHref="/dashboard/propietarios"
+        backLabel="Propietarios"
+        eyebrow={owner.documentId}
+        title={owner.fullName}
+        description="Ficha del propietario, inmuebles y documentos asociados"
+        actions={<Badge variant="secondary">{owner._count.properties} {owner._count.properties === 1 ? "inmueble" : "inmuebles"}</Badge>}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -280,11 +274,9 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
         </Card>
       </div>
 
+      <DetailSection title="Inmuebles del propietario" eyebrow="Portafolio">
       <Card>
-        <CardHeader>
-          <CardTitle>Inmuebles del Propietario</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {owner.properties.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">No hay inmuebles registrados</p>
           ) : (
@@ -305,7 +297,11 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
                   {owner.properties.map((property) => (
                     <TableRow key={property.id}>
                       <TableCell className="font-medium">{property.code}</TableCell>
-                      <TableCell>{property.title}</TableCell>
+                      <TableCell>
+                        <Link href={`/dashboard/inmuebles/${property.id}`} className="font-medium hover:text-primary">
+                          {property.title}
+                        </Link>
+                      </TableCell>
                       <TableCell>{property.city}</TableCell>
                       <TableCell>
                         <Badge variant={property.status === "AVAILABLE" ? "success" : "secondary"}>
@@ -323,6 +319,7 @@ export default function OwnerDetailPage({ params }: { params: Promise<{ id: stri
           )}
         </CardContent>
       </Card>
+      </DetailSection>
     </div>
   );
 }

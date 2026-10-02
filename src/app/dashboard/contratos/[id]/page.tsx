@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   Table,
@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { formatCurrency, formatDate, calculateDaysUntil, PAYMENT_CATEGORIES } from "@/lib/utils";
 import { getApiError } from "@/lib/api-error";
+import { DetailPageSkeleton } from "@/components/shared/skeletons";
 
 interface Lease {
   id: string;
@@ -234,11 +235,7 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
   };
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DetailPageSkeleton />;
   }
 
   if (!lease) {
@@ -357,10 +354,15 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2 text-base"><RefreshCw className="h-4 w-4 text-primary" />Plantilla y borrador</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar plantilla" /></SelectTrigger>
-              <SelectContent>{templates.map((template) => <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>)}</SelectContent>
-            </Select>
+            <SearchableSelect
+              value={selectedTemplate}
+              onValueChange={setSelectedTemplate}
+              placeholder="Seleccionar plantilla"
+              searchPlaceholder="Buscar plantilla…"
+              clearable
+              clearLabel="Sin plantilla"
+              options={templates.map((template) => ({ value: template.id, label: template.name }))}
+            />
             <Button type="button" className="w-full" onClick={generateDraft} disabled={isGeneratingDraft}>{isGeneratingDraft ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Generar borrador</Button>
             {lease.draftContent ? <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/40 p-3 text-xs leading-relaxed">{lease.draftContent}</pre> : <p className="text-sm text-muted-foreground">Genera un borrador para revisar automáticamente los datos del inmueble y las partes.</p>}
           </CardContent>

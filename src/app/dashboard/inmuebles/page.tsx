@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Search,
@@ -50,6 +51,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { getApiError } from "@/lib/api-error";
+import { CardGridSkeleton, TableSkeleton } from "@/components/shared/skeletons";
 
 interface Property {
   id: string;
@@ -523,16 +525,21 @@ export default function PropertiesPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ownerId">Propietario *</Label>
-                  <Select value={formData.ownerId} onValueChange={(v) => setFormData({ ...formData, ownerId: v })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar propietario" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {owners.map((owner) => (
-                        <SelectItem key={owner.id} value={owner.id}>{owner.fullName}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    id="ownerId"
+                    value={formData.ownerId}
+                    onValueChange={(v) => setFormData({ ...formData, ownerId: v })}
+                    placeholder="Seleccionar propietario"
+                    searchPlaceholder="Buscar propietario…"
+                    aria-invalid={Boolean(fieldErrors.ownerId)}
+                    options={owners.map((owner) => ({ value: owner.id, label: owner.fullName }))}
+                    onSearch={async (query) => {
+                      const response = await fetch(`/api/owners?search=${encodeURIComponent(query)}&limit=20`);
+                      if (!response.ok) return [];
+                      const data = await response.json();
+                      return (data.data ?? []).map((owner: { id: string; fullName: string }) => ({ value: owner.id, label: owner.fullName }));
+                    }}
+                  />
                   <FieldError message={fieldErrors.ownerId} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
@@ -879,7 +886,11 @@ export default function PropertiesPage() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+          viewMode === "cards" ? (
+            <CardGridSkeleton items={6} className="xl:grid-cols-2" />
+          ) : (
+            <TableSkeleton rows={8} columns={7} />
+          )
         ) : properties.length === 0 ? (
           <div className="border border-dashed border-border px-6 py-16 text-center">
             <Building2 className="mx-auto mb-4 h-10 w-10 text-muted-foreground" />

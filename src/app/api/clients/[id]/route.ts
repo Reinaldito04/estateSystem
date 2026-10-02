@@ -20,11 +20,11 @@ const clientUpdateSchema = z.object({
   riskSummary: z.string().optional(),
   notes: z.string().optional(),
   workPlace: z.string().optional(),
-  monthlyIncome: z.coerce.number().positive().optional().nullable(),
+  monthlyIncome: z.coerce.number().min(0).optional().nullable(),
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
   preferredPropertyType: z.string().optional(),
-  maxBudget: z.coerce.number().positive().optional().nullable(),
+  maxBudget: z.coerce.number().min(0).optional().nullable(),
   housingRequirement: z.string().optional(),
 });
 

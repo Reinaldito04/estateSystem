@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Wrench, Plus, CheckCircle2, XCircle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { RECURRENCE_OPTIONS, TASK_CATEGORIES, TASK_STATUSES, labelOf } from "@/lib/management";
@@ -168,17 +169,35 @@ export function PropertyMaintenancePanel({ propertyId }: { propertyId: string })
           <div className="space-y-1"><Label htmlFor="plan-date">Próxima fecha *</Label><Input id="plan-date" type="date" required value={form.nextDueDate} onChange={(e) => setForm({ ...form, nextDueDate: e.target.value })} /></div>
           <div className="space-y-1">
             <Label htmlFor="plan-asset">Activo (opcional)</Label>
-            <select id="plan-asset" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.assetId} onChange={(e) => setForm({ ...form, assetId: e.target.value })}>
-              <option value="">Sin activo</option>
-              {assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-            </select>
+            <SearchableSelect
+              id="plan-asset"
+              value={form.assetId}
+              onValueChange={(v) => setForm({ ...form, assetId: v })}
+              placeholder="Sin activo"
+              searchPlaceholder="Buscar activo…"
+              clearable
+              clearLabel="Sin activo"
+              options={assets.map((asset) => ({ value: asset.id, label: asset.name }))}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="plan-provider">Proveedor (opcional)</Label>
-            <select id="plan-provider" className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.providerId} onChange={(e) => setForm({ ...form, providerId: e.target.value })}>
-              <option value="">Sin proveedor</option>
-              {providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.companyName}</option>)}
-            </select>
+            <SearchableSelect
+              id="plan-provider"
+              value={form.providerId}
+              onValueChange={(v) => setForm({ ...form, providerId: v })}
+              placeholder="Sin proveedor"
+              searchPlaceholder="Buscar proveedor…"
+              clearable
+              clearLabel="Sin proveedor"
+              options={providers.map((provider) => ({ value: provider.id, label: provider.companyName }))}
+              onSearch={async (query) => {
+                const response = await fetch(`/api/providers?active=true&search=${encodeURIComponent(query)}`);
+                if (!response.ok) return [];
+                const data = await response.json();
+                return (data.data ?? []).map((provider: { id: string; companyName: string }) => ({ value: provider.id, label: provider.companyName }));
+              }}
+            />
           </div>
           <div className="space-y-1 md:col-span-2"><Label htmlFor="plan-description">Descripción</Label><Input id="plan-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
           <div className="md:col-span-3">

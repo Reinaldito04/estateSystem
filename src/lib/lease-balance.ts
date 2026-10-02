@@ -34,6 +34,11 @@ function countsAsPaidRent(transaction: RentTransaction, currency?: string) {
   return true;
 }
 
+function toNumber(value: number | string | unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export function calculateLeaseBalance(
   startDate: Date | string,
   endDate: Date | string,
@@ -46,7 +51,7 @@ export function calculateLeaseBalance(
   const end = startOfDay(new Date(endDate));
   const today = startOfDay(referenceDate);
   const dueThrough = today < end ? today : end;
-  const monthlyCanon = Number(monthlyCanonAmount);
+  const monthlyCanon = toNumber(monthlyCanonAmount);
   const installments: Date[] = [];
 
   for (let dueDate = new Date(start); dueDate <= dueThrough; dueDate = addMonths(dueDate, 1)) {
@@ -54,11 +59,11 @@ export function calculateLeaseBalance(
   }
 
   const paidTransactions = transactions.filter((transaction) => countsAsPaidRent(transaction, currency));
-  const paidRent = paidTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+  const paidRent = paidTransactions.reduce((sum, transaction) => sum + toNumber(transaction.amount), 0);
   const paidByCurrencyMap = new Map<string, number>();
-  for (const transaction of transactions.filter((item) => countsAsPaidRent(item))) {
+  for (const transaction of transactions.filter((item) => countsAsPaidRent(item, currency))) {
     const code = transaction.currency || currency || "USD";
-    paidByCurrencyMap.set(code, (paidByCurrencyMap.get(code) ?? 0) + Number(transaction.amount));
+    paidByCurrencyMap.set(code, (paidByCurrencyMap.get(code) ?? 0) + toNumber(transaction.amount));
   }
   const rentDue = installments.length * monthlyCanon;
   const debtAmount = Math.max(0, rentDue - paidRent);

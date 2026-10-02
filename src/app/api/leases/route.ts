@@ -12,6 +12,7 @@ import {
   assertCreatableStatus,
   assertDateOrder,
   assertGuarantor,
+  assertNoActiveOverlap,
   assertPropertyLeasable,
   isLeaseActive,
   loadEligibleTenant,
@@ -176,6 +177,9 @@ export async function POST(request: NextRequest) {
     } = validatedData;
     await loadEligibleTenant(clientProfileId);
     await assertPropertyLeasable(validatedData.propertyId);
+    if (contractStatus === "ACTIVE") {
+      await assertNoActiveOverlap(validatedData.propertyId, validatedData.startDate, validatedData.endDate);
+    }
 
     const existingLease = await prisma.lease.findUnique({
       where: { contractNumber: validatedData.contractNumber },

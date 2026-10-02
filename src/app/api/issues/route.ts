@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { validationError } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
 import { recordAudit } from "@/lib/audit";
 import { optionalDate } from "@/lib/schemas";
+import { handleRouteError } from "@/lib/domain-error";
 
 const issueSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),

@@ -32,6 +32,7 @@ import {
   Mail,
 } from "lucide-react";
 import { formatDate, formatCurrency, calculateDaysUntil } from "@/lib/utils";
+import { ListSkeleton } from "@/components/shared/skeletons";
 import { useToast } from "@/hooks/use-toast";
 import { getApiError } from "@/lib/api-error";
 
@@ -336,9 +337,7 @@ export default function NotificationsPage() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <ListSkeleton items={3} />
           ) : expiringLeases.length === 0 ? (
             <div className="text-center py-8">
               <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />

@@ -41,9 +41,9 @@ export async function saveFile(folder: string, groupId: string, filename: string
     return;
   }
 
-  const directory = path.join(localRoot(), folder, groupId);
+  const directory = path.join(/*turbopackIgnore: true*/ localRoot(), folder, groupId);
   await mkdir(directory, { recursive: true });
-  await writeFile(path.join(directory, filename), contents, { flag: "wx" });
+  await writeFile(path.join(/*turbopackIgnore: true*/ directory, filename), contents, { flag: "wx" });
 }
 
 export async function loadFile(folder: string, groupId: string, filename: string): Promise<Uint8Array> {
@@ -57,7 +57,7 @@ export async function loadFile(folder: string, groupId: string, filename: string
     return new Uint8Array(await response.arrayBuffer());
   }
 
-  return readFile(path.join(localRoot(), folder, groupId, filename));
+  return readFile(path.join(/*turbopackIgnore: true*/ localRoot(), folder, groupId, filename));
 }
 
 export async function deleteFile(folder: string, groupId: string, filename: string) {
@@ -74,7 +74,7 @@ export async function deleteFile(folder: string, groupId: string, filename: stri
   }
 
   try {
-    await unlink(path.join(localRoot(), folder, groupId, filename));
+    await unlink(path.join(/*turbopackIgnore: true*/ localRoot(), folder, groupId, filename));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }

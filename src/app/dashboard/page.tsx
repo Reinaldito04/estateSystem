@@ -18,6 +18,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { formatCurrency, formatDate, PAYMENT_CATEGORIES, PAYMENT_STATUSES } from "@/lib/utils";
+import { ListSkeleton, StatCardsSkeleton } from "@/components/shared/skeletons";
 
 type Stat = {
   name: string;
@@ -154,8 +155,10 @@ export default function DashboardPage() {
       </div>
 
       <section aria-label="Indicadores principales" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {data ? stats.map((stat) => <StatCard key={stat.name} stat={stat} />) : (
-          <p className="text-sm text-muted-foreground">Cargando indicadores…</p>
+        {data ? (
+          stats.map((stat) => <StatCard key={stat.name} stat={stat} />)
+        ) : (
+          <StatCardsSkeleton count={6} className="sm:col-span-2 xl:col-span-3" />
         )}
       </section>
 
@@ -175,7 +178,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/60">
-              {!data || data.recentTransactions.length === 0 ? (
+              {!data ? (
+                <ListSkeleton items={4} className="px-5 py-4 sm:px-6" />
+              ) : data.recentTransactions.length === 0 ? (
                 <p className="px-5 py-6 text-sm text-muted-foreground sm:px-6">Sin movimientos registrados.</p>
               ) : (
                 data.recentTransactions.map((transaction) => (
@@ -222,7 +227,9 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="divide-y divide-border/60">
-              {!data || data.upcomingExpirations.length === 0 ? (
+              {!data ? (
+                <ListSkeleton items={3} className="pt-2" />
+              ) : data.upcomingExpirations.length === 0 ? (
                 <p className="py-3.5 text-sm text-muted-foreground">Sin contratos próximos a vencer.</p>
               ) : (
                 data.upcomingExpirations.map((contract, index) => (

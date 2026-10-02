@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import mammoth from "mammoth/mammoth.browser";
 import Heading from "@tiptap/extension-heading";
 
@@ -47,6 +47,40 @@ interface RichTextEditorProps {
   onChange: (content: string) => void;
   placeholder?: string;
   minHeight?: number;
+}
+
+interface ToolbarButtonProps {
+  onClick: () => void;
+  isActive?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+  title: string;
+}
+
+function ToolbarButton({
+  onClick,
+  isActive,
+  disabled,
+  children,
+  title,
+}: ToolbarButtonProps) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      // ⚠️ CLAVE: onMouseDown con preventDefault evita que el editor pierda el foco
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onClick();
+      }}
+      disabled={disabled}
+      title={title}
+      className={`h-8 w-8 ${isActive ? "bg-accent" : ""}`}
+    >
+      {children}
+    </Button>
+  );
 }
 
 export function RichTextEditor({
@@ -102,6 +136,15 @@ export function RichTextEditor({
     // El `content` inicial solo se usa al montar. Los cambios se propagan vía onUpdate.
     []
   );
+
+  // Sincronizar cambios del prop `content` con el editor (por ejemplo, al abrir otro documento)
+  useEffect(() => {
+    if (!editor) return;
+    const currentHtml = editor.getHTML();
+    if (currentHtml !== content) {
+      editor.commands.setContent(content, { emitUpdate: false });
+    }
+  }, [editor, content]);
 
   // ⚠️ CLAVE 4: useEditorState para que el toolbar reaccione a cambios de estado
   const editorState = useEditorState({
@@ -222,36 +265,6 @@ export function RichTextEditor({
   );
 
   if (!editor || !editorState) return null;
-
-  const ToolbarButton = ({
-    onClick,
-    isActive,
-    disabled,
-    children,
-    title,
-  }: {
-    onClick: () => void;
-    isActive?: boolean;
-    disabled?: boolean;
-    children: React.ReactNode;
-    title: string;
-  }) => (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      // ⚠️ CLAVE 5: onMouseDown con preventDefault evita que el editor pierda el foco
-      onMouseDown={(e) => {
-        e.preventDefault();
-        onClick();
-      }}
-      disabled={disabled}
-      title={title}
-      className={`h-8 w-8 ${isActive ? "bg-accent" : ""}`}
-    >
-      {children}
-    </Button>
-  );
 
   return (
     <div className="overflow-hidden rounded-lg border border-border/60">
