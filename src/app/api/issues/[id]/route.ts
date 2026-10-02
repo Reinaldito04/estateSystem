@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { validationError } from "@/lib/validation";
-import { Prisma } from "@prisma/client";
 import { recordAudit } from "@/lib/audit";
-import { optionalDate } from "@/lib/schemas";
+import { getCurrentUser } from "@/lib/session";
+import { handleRouteError } from "@/lib/domain-error";
+import { requiredDate, optionalDate } from "@/lib/schemas";
+import { Prisma } from "@prisma/client";
 
 const issueUpdateSchema = z.object({
-  propertyId: z.string().uuid().optional(),
   clientId: z.string().uuid().optional().nullable(),
   tenantId: z.string().uuid().optional(),
   issueType: z.string().min(1, "Tipo de avería es requerido").optional(),
@@ -87,11 +87,7 @@ export async function PUT(
     await recordAudit({ entityType: "PropertyIssue", entityId: id, action: "UPDATE", changes: validatedData, request });
     return NextResponse.json({ ...issue, tenant: issue.client });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return validationError(error);
-    }
-    console.error("Error updating issue:", error);
-    return NextResponse.json({ error: "Error al actualizar avería" }, { status: 500 });
+    return handleRouteError(error, "Error al actualizar avería");
   }
 }
 
@@ -101,11 +97,11 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    await prisma.propertyIssue.delete({ where: { id } });
-    await recordAudit({ entityType: "PropertyIssue", entityId: id, action: "DELETE", request });
+await prisma.propertyIssue.delete({ where: { id } });
+    const user = await getCurrentUser();
+    await recordAudit({ entityType: "PropertyIssue", entityId: id, action: "DELETE", userId: user?.id, request });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting issue:", error);
-    return NextResponse.json({ error: "Error al eliminar avería" }, { status: 500 });
+    return handleRouteError(error, "Error al eliminar denuncia");
   }
 }

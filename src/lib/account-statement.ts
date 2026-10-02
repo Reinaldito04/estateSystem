@@ -58,6 +58,7 @@ export async function buildAccountStatement(params: AccountStatementParams) {
   const transactions = await prisma.transaction.findMany({
     where: {
       propertyId: propertyId ?? { in: propertyIds },
+      status: "PAID",
       ...(tenantId && { lease: { is: { leaseClients: { some: { clientId: tenantId } } } } }),
       ...(dateFilter && { paymentDate: dateFilter }),
     },

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { validationError } from "@/lib/validation";
 import { clientStatusToUi, toClientStatus } from "@/lib/enum-mapping";
+import { parsePagination } from "@/lib/pagination";
 
 const clientSchema = z.object({
   fullName: z.string().min(1, "El nombre es requerido"),
@@ -31,13 +32,12 @@ const clientSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = Number(searchParams.get("page") || "1");
-    const limit = Number(searchParams.get("limit") || "10");
+    const { page, limit, skip } = parsePagination(searchParams);
     const search = searchParams.get("search") || "";
     const role = searchParams.get("role") || "";
-    const skip = (page - 1) * limit;
 
     const where: Prisma.ClientProfileWhereInput = {
+      deletedAt: null,
       ...(role === "TENANT" && { role: "TENANT" }),
       ...(search && {
         OR: [

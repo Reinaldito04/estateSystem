@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ...issue, tenant: issue.client }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return validationError(error);
+      return handleRouteError(error, "Error al crear denuncia") as NextResponse;
     }
     console.error("Error creating issue:", error);
     return NextResponse.json({ error: "Error al crear avería" }, { status: 500 });

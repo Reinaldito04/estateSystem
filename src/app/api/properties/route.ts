@@ -4,6 +4,7 @@ import { z } from "zod";
 import { validationError } from "@/lib/validation";
 import { propertyStatusToUi, toPropertyStatus, toPropertyType } from "@/lib/enum-mapping";
 import { recordAudit } from "@/lib/audit";
+import { parsePagination } from "@/lib/pagination";
 
 const propertySchema = z.object({
   code: z.string().min(1, "Código es requerido"),
@@ -45,8 +46,7 @@ const propertySchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const { page, limit, skip } = parsePagination(searchParams);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
     const ownerId = searchParams.get("ownerId") || "";
@@ -55,7 +55,6 @@ export async function GET(request: NextRequest) {
     const city = searchParams.get("city") || "";
     const minCanon = searchParams.get("minCanon") || "";
     const maxCanon = searchParams.get("maxCanon") || "";
-    const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {
       deletedAt: null,

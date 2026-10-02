@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { validationError } from "@/lib/validation";
 import { requiredDate, optionalDate } from "@/lib/schemas";
 import { Prisma } from "@prisma/client";
 import { calculateLeaseBalance } from "@/lib/lease-balance";
+import { recordAudit } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/session";
+import { handleRouteError } from "@/lib/domain-error";
+import {
+  assertDateOrder,
+  assertGuarantor,
+  assertNoActiveOverlap,
+  assertPropertyLeasable,
+  assertStatusTransition,
+  isLeaseActive,
+  loadEligibleTenant,
+  normalizeContractStatus,
+  syncPropertyOccupancy,
+} from "@/lib/lease-workflow";
 
 const leaseUpdateSchema = z.object({
   propertyId: z.string().uuid().optional(),
@@ -40,16 +53,6 @@ const leaseUpdateSchema = z.object({
   signedIp: z.string().optional(),
 });
 
-const CONTRACT_STATUS_MAP = {
-  DRAFT: "DRAFT",
-  IN_REVIEW: "PENDING_SIGNATURE",
-  PENDING_SIGNATURE: "PENDING_SIGNATURE",
-  ACTIVE: "ACTIVE",
-  EXPIRED: "EXPIRED",
-  TERMINATED: "TERMINATED",
-  CANCELLED: "CANCELLED",
-} as const;
-
 const PRICE_ADJUSTMENT_MAP = {
   NONE: "NONE",
   IPC: "INDEX",
@@ -59,26 +62,14 @@ const PRICE_ADJUSTMENT_MAP = {
   INDEX: "INDEX",
 } as const;
 
-async function validateClient(clientProfileId: string) {
-  const client = await prisma.clientProfile.findUnique({
-    where: { id: clientProfileId },
-    select: { id: true, fullName: true, legalDocumentId: true, email: true, phone: true, role: true },
-  });
-  if (!client || client.role !== "TENANT") {
-    throw new Error("El cliente seleccionado debe tener el rol Inquilino");
-  }
-
-  return client;
-}
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const lease = await prisma.lease.findUnique({
-      where: { id },
+    const lease = await prisma.lease.findFirst({
+      where: { id, deletedAt: null },
       include: {
         property: {
           include: {
@@ -133,9 +124,14 @@ export async function GET(
         lease.endDate,
         Number(lease.monthlyCanonAmount),
         lease.transactions.map((transaction) => ({
-          ...transaction,
+          category: transaction.category,
           amount: Number(transaction.amount),
+          paymentDate: transaction.paymentDate,
+          status: transaction.status,
+          currency: transaction.currency,
         })),
+        new Date(),
+        lease.currency,
       ),
     });
   } catch (error) {
@@ -152,6 +148,21 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
     const validatedData = leaseUpdateSchema.parse(body);
+    const current = await prisma.lease.findFirst({ where: { id, deletedAt: null } });
+    if (!current) {
+      return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
+    }
+
+    const nextStatus = validatedData.contractStatus
+      ? normalizeContractStatus(validatedData.contractStatus)
+      : current.contractStatus;
+    assertStatusTransition(current.contractStatus, nextStatus);
+    const startDate = validatedData.startDate ?? current.startDate;
+    const endDate = validatedData.endDate ?? current.endDate;
+    const propertyId = validatedData.propertyId ?? current.propertyId;
+    assertDateOrder(startDate, endDate);
+    if (validatedData.propertyId) await assertPropertyLeasable(validatedData.propertyId);
+    if (nextStatus === "ACTIVE") await assertNoActiveOverlap(propertyId, startDate, endDate, id);
 
     if (validatedData.contractNumber) {
       const existingLease = await prisma.lease.findFirst({
@@ -177,18 +188,18 @@ export async function PUT(
       signatureStatus,
       signedAt,
       signedIp,
-      contractStatus,
       priceAdjustmentType,
       ...leaseFields
     } = validatedData;
 
     const updateData: Prisma.LeaseUpdateInput = {
       ...leaseFields,
-      ...(contractStatus !== undefined && { contractStatus: CONTRACT_STATUS_MAP[contractStatus] }),
+      contractStatus: nextStatus,
+      isActive: isLeaseActive(nextStatus),
       ...(priceAdjustmentType !== undefined && { priceAdjustmentType: PRICE_ADJUSTMENT_MAP[priceAdjustmentType] }),
     };
     if (clientProfileId) {
-      await validateClient(clientProfileId);
+      await loadEligibleTenant(clientProfileId);
       updateData.leaseClients = {
         deleteMany: { role: "TENANT" },
         create: { clientId: clientProfileId, role: "TENANT" },
@@ -218,7 +229,9 @@ export async function PUT(
       guarantorEmail !== undefined;
 
     if (hasGuarantorInput) {
-      const shouldKeepGuarantor = guarantorRequired === true || (guarantorRequired === undefined && Boolean(guarantorName));
+      const requiresGuarantor = guarantorRequired === true;
+      assertGuarantor(requiresGuarantor, guarantorName);
+      const shouldKeepGuarantor = requiresGuarantor || (guarantorRequired === undefined && Boolean(guarantorName));
       if (shouldKeepGuarantor && guarantorName) {
         updateData.guarantors = {
           deleteMany: {},
@@ -279,13 +292,23 @@ export async function PUT(
       },
     });
 
+    if (nextStatus !== "ACTIVE" || validatedData.propertyId) {
+      await syncPropertyOccupancy(lease.propertyId);
+      if (current.propertyId !== lease.propertyId) await syncPropertyOccupancy(current.propertyId);
+    }
+    const user = await getCurrentUser();
+    await recordAudit({
+      entityType: "Lease",
+      entityId: id,
+      action: "UPDATE",
+      userId: user?.id,
+      changes: { contractStatus: nextStatus },
+      request,
+    });
+
     return NextResponse.json(lease);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return validationError(error);
-    }
-    console.error("Error updating lease:", error);
-    return NextResponse.json({ error: "Error al actualizar contrato" }, { status: 500 });
+    return handleRouteError(error, "Error al actualizar contrato");
   }
 }
 
@@ -296,26 +319,28 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const lease = await prisma.lease.findUnique({
-      where: { id },
-      include: { transactions: true, notices: true },
+    const lease = await prisma.lease.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, propertyId: true, contractStatus: true },
     });
 
     if (!lease) {
       return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
     }
 
-    if (lease.transactions.length > 0 || lease.notices.length > 0) {
-      return NextResponse.json(
-        { error: "No se puede eliminar un contrato que tiene transacciones o notificaciones asociadas" },
-        { status: 400 }
-      );
-    }
-
-    await prisma.lease.delete({ where: { id } });
+    await prisma.lease.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        isActive: false,
+        ...(lease.contractStatus === "ACTIVE" ? { contractStatus: "CANCELLED" } : {}),
+      },
+    });
+    await syncPropertyOccupancy(lease.propertyId);
+    const user = await getCurrentUser();
+    await recordAudit({ entityType: "Lease", entityId: id, action: "DELETE", userId: user?.id, request });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting lease:", error);
-    return NextResponse.json({ error: "Error al eliminar contrato" }, { status: 500 });
+    return handleRouteError(error, "Error al eliminar contrato");
   }
 }

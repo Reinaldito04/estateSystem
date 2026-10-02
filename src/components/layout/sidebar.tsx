@@ -52,6 +52,7 @@ const operationalNavigation = [
   { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays },
   { name: "Averías", href: "/dashboard/averias", icon: Wrench },
   { name: "Proveedores", href: "/dashboard/proveedores", icon: HardHat },
+  { name: "Auditoría", href: "/dashboard/auditoria", icon: HardHat },
   { name: "Documentos", href: "/dashboard/documentos", icon: FolderOpen },
   { name: "Notificaciones", href: "/dashboard/notificaciones", icon: Bell },
   { name: "Usuarios", href: "/dashboard/usuarios", icon: Users },

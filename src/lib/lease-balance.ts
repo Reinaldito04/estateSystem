@@ -2,6 +2,8 @@ type RentTransaction = {
   category: string;
   amount: number | string;
   paymentDate: Date | string;
+  status?: string;
+  currency?: string;
 };
 
 export type LeaseBalance = {
@@ -10,6 +12,7 @@ export type LeaseBalance = {
   debtAmount: number;
   overdueInstallments: number;
   debtDays: number;
+  paidByCurrency: { currency: string; total: number }[];
 };
 
 function startOfDay(date: Date): Date {
@@ -24,12 +27,20 @@ function addMonths(date: Date, months: number): Date {
   return result;
 }
 
+function countsAsPaidRent(transaction: RentTransaction, currency?: string) {
+  if (transaction.category !== "RENT_CANON") return false;
+  if (transaction.status && transaction.status !== "PAID") return false;
+  if (currency && transaction.currency && transaction.currency !== currency) return false;
+  return true;
+}
+
 export function calculateLeaseBalance(
   startDate: Date | string,
   endDate: Date | string,
   monthlyCanonAmount: number | string,
   transactions: RentTransaction[],
   referenceDate = new Date(),
+  currency?: string,
 ): LeaseBalance {
   const start = startOfDay(new Date(startDate));
   const end = startOfDay(new Date(endDate));
@@ -42,9 +53,13 @@ export function calculateLeaseBalance(
     installments.push(new Date(dueDate));
   }
 
-  const paidRent = transactions
-    .filter((transaction) => transaction.category === "RENT_CANON")
-    .reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+  const paidTransactions = transactions.filter((transaction) => countsAsPaidRent(transaction, currency));
+  const paidRent = paidTransactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+  const paidByCurrencyMap = new Map<string, number>();
+  for (const transaction of transactions.filter((item) => countsAsPaidRent(item))) {
+    const code = transaction.currency || currency || "USD";
+    paidByCurrencyMap.set(code, (paidByCurrencyMap.get(code) ?? 0) + Number(transaction.amount));
+  }
   const rentDue = installments.length * monthlyCanon;
   const debtAmount = Math.max(0, rentDue - paidRent);
   let remainingPaid = paidRent;
@@ -71,5 +86,6 @@ export function calculateLeaseBalance(
     debtAmount,
     overdueInstallments,
     debtDays,
+    paidByCurrency: Array.from(paidByCurrencyMap.entries()).map(([code, total]) => ({ currency: code, total })),
   };
 }

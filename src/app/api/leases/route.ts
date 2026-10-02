@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
-import { validationError } from "@/lib/validation";
 import { requiredDate, optionalDate } from "@/lib/schemas";
 import { Prisma } from "@prisma/client";
 import { calculateLeaseBalance } from "@/lib/lease-balance";
+import { recordAudit } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/session";
+import { handleRouteError } from "@/lib/domain-error";
+import { parsePagination } from "@/lib/pagination";
+import {
+  assertCreatableStatus,
+  assertDateOrder,
+  assertGuarantor,
+  assertPropertyLeasable,
+  isLeaseActive,
+  loadEligibleTenant,
+  normalizeContractStatus,
+} from "@/lib/lease-workflow";
 
 const leaseSchema = z.object({
   propertyId: z.string().uuid("Inmueble es requerido"),
@@ -40,16 +52,6 @@ const leaseSchema = z.object({
   signedIp: z.string().optional(),
 });
 
-const CONTRACT_STATUS_MAP = {
-  DRAFT: "DRAFT",
-  IN_REVIEW: "PENDING_SIGNATURE",
-  PENDING_SIGNATURE: "PENDING_SIGNATURE",
-  ACTIVE: "ACTIVE",
-  EXPIRED: "EXPIRED",
-  TERMINATED: "TERMINATED",
-  CANCELLED: "CANCELLED",
-} as const;
-
 const PRICE_ADJUSTMENT_MAP = {
   NONE: "NONE",
   IPC: "INDEX",
@@ -59,30 +61,26 @@ const PRICE_ADJUSTMENT_MAP = {
   INDEX: "INDEX",
 } as const;
 
-async function validateClient(clientProfileId: string) {
-  const client = await prisma.clientProfile.findUnique({
-    where: { id: clientProfileId },
-    select: { id: true, fullName: true, legalDocumentId: true, email: true, phone: true, role: true },
-  });
-  if (!client || client.role !== "TENANT") {
-    throw new Error("El cliente seleccionado debe tener el rol Inquilino");
-  }
-
-  return client;
+function toBalanceInput(transaction: { category: string; amount: unknown; paymentDate: Date; status: string; currency: string }) {
+  return {
+    category: transaction.category,
+    amount: Number(transaction.amount),
+    paymentDate: transaction.paymentDate,
+    status: transaction.status,
+    currency: transaction.currency,
+  };
 }
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const { page, limit, skip } = parsePagination(searchParams);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "";
     const propertyId = searchParams.get("propertyId") || "";
     const tenantId = searchParams.get("tenantId") || "";
-    const skip = (page - 1) * limit;
-
     const where: Prisma.LeaseWhereInput = {
+      deletedAt: null,
       ...(search && {
         OR: [
           { contractNumber: { contains: search, mode: "insensitive" } },
@@ -113,7 +111,7 @@ export async function GET(request: NextRequest) {
         include: {
           property: { select: { id: true, code: true, title: true, address: true } },
           leaseClients: { where: { role: "TENANT" }, select: { client: { select: { id: true, fullName: true, legalDocumentId: true, phone: true, email: true } } } },
-          transactions: { select: { category: true, amount: true, paymentDate: true } },
+          transactions: { select: { category: true, amount: true, paymentDate: true, status: true, currency: true } },
           _count: { select: { transactions: true, notices: true } },
           template: { select: { id: true, name: true, contractType: true } },
           signature: true,
@@ -136,10 +134,9 @@ export async function GET(request: NextRequest) {
           lease.startDate,
           lease.endDate,
           Number(lease.monthlyCanonAmount),
-          transactions.map((transaction) => ({
-            ...transaction,
-            amount: Number(transaction.amount),
-          })),
+          transactions.map(toBalanceInput),
+          new Date(),
+          lease.currency,
         ),
       })),
       pagination: {
@@ -159,6 +156,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const validatedData = leaseSchema.parse(body);
+    const contractStatus = normalizeContractStatus(validatedData.contractStatus);
+    assertCreatableStatus(contractStatus);
+    assertDateOrder(validatedData.startDate, validatedData.endDate);
+    assertGuarantor(validatedData.guarantorRequired, validatedData.guarantorName);
     const {
       clientProfileId,
       guarantorRequired,
@@ -173,7 +174,8 @@ export async function POST(request: NextRequest) {
       signedIp,
       ...leaseData
     } = validatedData;
-    await validateClient(clientProfileId);
+    await loadEligibleTenant(clientProfileId);
+    await assertPropertyLeasable(validatedData.propertyId);
 
     const existingLease = await prisma.lease.findUnique({
       where: { contractNumber: validatedData.contractNumber },
@@ -189,7 +191,8 @@ export async function POST(request: NextRequest) {
     const lease = await prisma.lease.create({
       data: {
         ...leaseData,
-        contractStatus: CONTRACT_STATUS_MAP[leaseData.contractStatus],
+        contractStatus,
+        isActive: isLeaseActive(contractStatus),
         priceAdjustmentType: PRICE_ADJUSTMENT_MAP[leaseData.priceAdjustmentType],
         leaseClients: { create: { clientId: clientProfileId, role: "TENANT" } },
         ...(guarantorRequired && guarantorName
@@ -232,12 +235,10 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const user = await getCurrentUser();
+    await recordAudit({ entityType: "Lease", entityId: lease.id, action: "CREATE", userId: user?.id, changes: { contractNumber: lease.contractNumber, contractStatus }, request });
     return NextResponse.json(lease, { status: 201 });
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return validationError(error);
-    }
-    console.error("Error creating lease:", error);
-    return NextResponse.json({ error: "Error al crear contrato" }, { status: 500 });
+    return handleRouteError(error, "Error al crear contrato");
   }
 }
