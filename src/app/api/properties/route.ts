@@ -29,6 +29,8 @@ const propertySchema = z.object({
   internetAccountNumber: z.string().optional(),
   condoAdministration: z.string().optional(),
   condoFeeAmount: z.number().min(0).nullable().optional(),
+  askingRentAmount: z.number().min(0).nullable().optional(),
+  askingRentCurrency: z.enum(["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"]).optional(),
   condoContact: z.string().optional(),
   electricityProvider: z.string().optional(),
   electricityMeterNumber: z.string().optional(),

@@ -6,6 +6,7 @@ export const ALL_ROLES: AppRole[] = ["ADMIN", "AGENT", "ASSISTANT", "ACCOUNTANT"
 const WRITE_MATRIX: { prefix: string; roles: AppRole[] }[] = [
   { prefix: "/api/users", roles: ["ADMIN"] },
   { prefix: "/api/profile", roles: ALL_ROLES },
+  { prefix: "/api/import", roles: ["ADMIN", "AGENT", "ASSISTANT"] },
   { prefix: "/api/owner-settlements", roles: ["ADMIN", "AGENT", "ACCOUNTANT"] },
   { prefix: "/api/account-statements", roles: ["ADMIN", "AGENT", "ACCOUNTANT"] },
   { prefix: "/api/transactions", roles: ["ADMIN", "AGENT", "ACCOUNTANT"] },

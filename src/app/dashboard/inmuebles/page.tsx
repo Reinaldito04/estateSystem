@@ -170,6 +170,8 @@ export default function PropertiesPage() {
     condoAccountNumber: "",
     condoAdministration: "",
     condoFeeAmount: "",
+    askingRentAmount: "",
+    askingRentCurrency: "USD",
     condoContact: "",
     electricityAccountNumber: "",
     electricityProvider: "",
@@ -304,6 +306,8 @@ export default function PropertiesPage() {
           amenities: formData.amenities.split(",").map((amenity) => amenity.trim()).filter(Boolean),
           captureCommission: formData.captureCommission ? parseFloat(formData.captureCommission) : null,
           condoFeeAmount: formData.condoFeeAmount ? parseFloat(formData.condoFeeAmount) : null,
+          askingRentAmount: formData.askingRentAmount ? parseFloat(formData.askingRentAmount) : null,
+          askingRentCurrency: formData.askingRentCurrency,
           customFields: Object.fromEntries(
             customFieldDrafts
               .filter((field) => field.name.trim())
@@ -356,6 +360,8 @@ export default function PropertiesPage() {
       condoAccountNumber: (p.condoAccountNumber as string) || "",
       condoAdministration: (p.condoAdministration as string) || "",
       condoFeeAmount: p.condoFeeAmount ? String(p.condoFeeAmount) : "",
+      askingRentAmount: p.askingRentAmount ? String(p.askingRentAmount) : "",
+      askingRentCurrency: (p.askingRentCurrency as string) || "USD",
       condoContact: (p.condoContact as string) || "",
       electricityAccountNumber: (p.electricityAccountNumber as string) || "",
       electricityProvider: (p.electricityProvider as string) || "",
@@ -416,6 +422,8 @@ export default function PropertiesPage() {
       condoAccountNumber: "",
       condoAdministration: "",
       condoFeeAmount: "",
+      askingRentAmount: "",
+      askingRentCurrency: "USD",
       condoContact: "",
       electricityAccountNumber: "",
       electricityProvider: "",
@@ -667,6 +675,29 @@ export default function PropertiesPage() {
                       onChange={(e) => setFormData({ ...formData, condoFeeAmount: e.target.value })}
                       placeholder="120.00"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="askingRentAmount">Canon solicitado</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="askingRentAmount"
+                        type="number"
+                        step="0.01"
+                        value={formData.askingRentAmount}
+                        onChange={(e) => setFormData({ ...formData, askingRentAmount: e.target.value })}
+                        placeholder="750.00"
+                      />
+                      <select
+                        aria-label="Moneda del canon"
+                        value={formData.askingRentCurrency}
+                        onChange={(e) => setFormData({ ...formData, askingRentCurrency: e.target.value })}
+                        className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+                      >
+                        {["USD", "EUR", "MXN", "COP", "ARS", "CLP", "PEN", "BRL", "OTHER"].map((currency) => (
+                          <option key={currency} value={currency}>{currency}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="condoContact">Contacto del Condominio</Label>

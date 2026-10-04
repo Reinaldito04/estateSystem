@@ -12,6 +12,8 @@ import type { ClientProfile } from "../types";
 import { getApiError } from "@/lib/api-error";
 import { useToast } from "@/hooks/use-toast";
 import { DetailPageSkeleton } from "@/components/shared/skeletons";
+import { ClientMatchesCard } from "./client-matches-card";
+import { COMMUNICATION_TEMPLATES, renderTemplateString } from "@/lib/communication-templates";
 
 const emptyReferenceForm = {
   referenceType: "PERSONAL",
@@ -29,6 +31,8 @@ const emptyCommunicationForm = {
   subject: "",
   content: "",
   relatedRequest: "",
+  templateId: "",
+  sendEmail: false,
 };
 
 const emptyDocumentForm = {
@@ -169,14 +173,40 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
     }
   };
 
+  const applyCommunicationTemplate = (templateId: string) => {
+    const template = COMMUNICATION_TEMPLATES.find((item) => item.id === templateId);
+    if (!template || !client) {
+      setCommunicationForm((current) => ({ ...current, templateId }));
+      return;
+    }
+    const variables = { nombre: client.fullName };
+    setCommunicationForm((current) => ({
+      ...current,
+      templateId,
+      subject: renderTemplateString(template.subject, variables),
+      content: renderTemplateString(template.content, variables),
+    }));
+  };
+
   const handleAddCommunication = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const shouldSend =
+      communicationForm.sendEmail &&
+      communicationForm.channel === "EMAIL" &&
+      communicationForm.direction === "OUTBOUND";
 
     try {
       const response = await fetch(`/api/clients/${clientId}/communications`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(communicationForm),
+        body: JSON.stringify({
+          channel: communicationForm.channel,
+          direction: communicationForm.direction,
+          subject: communicationForm.subject,
+          content: communicationForm.content,
+          relatedRequest: communicationForm.relatedRequest,
+          send: shouldSend,
+        }),
       });
 
       const result = await response.json();
@@ -184,6 +214,14 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
 
       setCommunicationForm(emptyCommunicationForm);
       await refreshClient();
+
+      if (shouldSend) {
+        if (result.emailSent) {
+          toast({ title: "Comunicación enviada", description: "El correo se envió al cliente." });
+        } else {
+          toast({ title: "Comunicación registrada", description: `No se envió el correo: ${result.emailReason ?? "motivo desconocido"}.` });
+        }
+      }
     } catch (error) {
       toast({ title: "Error", description: error instanceof Error ? error.message : "Error al guardar la comunicación", variant: "destructive" });
     }
@@ -452,6 +490,20 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
       </div>
 
       {renderRoleSpecificInformation()}
+
+      {(client.role === "BUYER" || client.role === "PROSPECT" || client.role === "TENANT") && (
+        <ClientMatchesCard
+          clientId={clientId}
+          preferences={[
+            client.preferredPropertyType ? `Tipo preferido: ${client.preferredPropertyType}` : null,
+            client.city ? `Ciudad: ${client.city}` : null,
+            client.maxBudget ? `Presupuesto: ${formatCurrency(client.maxBudget)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        />
+      )}
+
       {renderTenantOperations()}
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -508,6 +560,19 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
           <CardContent className="space-y-4 text-sm">
             <form onSubmit={handleAddCommunication} className="space-y-3 rounded-lg border p-3">
               <div className="space-y-1">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Plantilla</label>
+                <select
+                  value={communicationForm.templateId}
+                  onChange={(event) => applyCommunicationTemplate(event.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">Sin plantilla</option>
+                  {COMMUNICATION_TEMPLATES.map((template) => (
+                    <option key={template.id} value={template.id}>{template.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
                 <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Canal</label>
                 <select
                   value={communicationForm.channel}
@@ -542,6 +607,16 @@ export function ClientDetailPage({ clientId }: { clientId: string }) {
                 required
               />
               <Input value={communicationForm.relatedRequest} onChange={(event) => setCommunicationForm({ ...communicationForm, relatedRequest: event.target.value })} placeholder="Solicitud relacionada" />
+              {communicationForm.channel === "EMAIL" && communicationForm.direction === "OUTBOUND" && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={communicationForm.sendEmail}
+                    onChange={(event) => setCommunicationForm({ ...communicationForm, sendEmail: event.target.checked })}
+                  />
+                  Enviar por correo al cliente
+                </label>
+              )}
               <Button type="submit" className="w-full">Agregar comunicación</Button>
             </form>
             {client.communications.length === 0 ? (

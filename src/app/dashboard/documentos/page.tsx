@@ -65,7 +65,7 @@ export default function DocumentsPage() {
   const [properties, setProperties] = useState<Entity[]>([]);
   const [leases, setLeases] = useState<Entity[]>([]);
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -149,8 +149,26 @@ export default function DocumentsPage() {
     }
   };
 
+  const isFormValid =
+    Boolean(formData.entityType) &&
+    Boolean(formData.entityId) &&
+    Boolean(formData.documentName.trim()) &&
+    Boolean(formData.fileUrl.trim());
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.entityType) {
+      toast({ title: "Tipo requerido", description: "Selecciona el tipo de entidad del documento", variant: "destructive" });
+      return;
+    }
+    if (!formData.entityId) {
+      toast({ title: "Entidad requerida", description: "Selecciona la entidad a la que pertenece el documento", variant: "destructive" });
+      return;
+    }
+    if (!formData.documentName.trim()) {
+      toast({ title: "Nombre requerido", description: "Escribe el nombre del documento", variant: "destructive" });
+      return;
+    }
     if (!formData.fileUrl.trim()) {
       toast({ title: "Contenido requerido", description: "Escribe el contenido del documento", variant: "destructive" });
       return;
@@ -273,12 +291,12 @@ export default function DocumentsPage() {
             </Button>
           </DialogTrigger>
           <DialogContent className="fixed inset-0 w-full h-full max-w-none translate-x-0 translate-y-0 flex flex-col gap-0 border-0 rounded-none p-0">
-            <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
-              <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 px-6 py-4">
+              <div className="flex flex-wrap items-center gap-3">
                 <DialogTitle className="text-lg font-semibold">
                   {editingDocument ? "Editar Documento" : "Nuevo Documento"}
                 </DialogTitle>
-                <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span>Tipo:</span>
                   <Select value={formData.entityType} onValueChange={(v) => setFormData({ ...formData, entityType: v, entityId: "" })}>
                     <SelectTrigger className="h-8 w-36">
@@ -293,7 +311,7 @@ export default function DocumentsPage() {
                   </Select>
                 </div>
                 {formData.entityType && (
-                  <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>Entidad:</span>
                     <SearchableSelect
                       value={formData.entityId}
@@ -328,7 +346,7 @@ export default function DocumentsPage() {
                 <Button type="button" variant="ghost" size="sm" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="button" size="sm" onClick={handleSubmit} disabled={isSubmitting}>
+                <Button type="button" size="sm" onClick={handleSubmit} disabled={isSubmitting || !isFormValid}>
                   {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   {editingDocument ? "Actualizar" : "Guardar"}
                 </Button>

@@ -22,6 +22,7 @@ const breadcrumbMap: Record<string, string> = {
   "/dashboard/propietarios": "Propietarios",
   "/dashboard/inmuebles": "Inmuebles",
   "/dashboard/contratos": "Contratos",
+  "/dashboard/importar": "Importar",
   "/dashboard/transacciones": "Transacciones",
   "/dashboard/averias": "Averías",
   "/dashboard/calendario": "Calendario",

@@ -501,6 +501,8 @@ model Property {
   internetAccountNumber    String?               @map("internet_account_number")
   condoAdministration      String?               @map("condo_administration")
   condoFeeAmount           Decimal?              @map("condo_fee_amount") @db.Decimal(10, 2)
+  askingRentAmount         Decimal?              @map("asking_rent_amount") @db.Decimal(12, 2)
+  askingRentCurrency       CurrencyCode          @default(USD) @map("asking_rent_currency")
   condoContact             String?               @map("condo_contact")
   electricityProvider      String?               @map("electricity_provider")
   electricityMeterNumber   String?               @map("electricity_meter_number")

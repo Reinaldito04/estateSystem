@@ -20,6 +20,7 @@ import {
   HardHat,
   ChevronDown,
   Sparkles,
+  Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const managementNavigation = [
   { name: "Propietarios", href: "/dashboard/propietarios", icon: Users },
   { name: "Inmuebles", href: "/dashboard/inmuebles", icon: Building2 },
   { name: "Contratos", href: "/dashboard/contratos", icon: FileText },
+  { name: "Importar", href: "/dashboard/importar", icon: Upload },
 ];
 
 const financialNavigation = [
