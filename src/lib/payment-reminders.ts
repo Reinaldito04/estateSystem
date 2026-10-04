@@ -94,7 +94,7 @@ export async function sendPaymentReminders(referenceDate = new Date()): Promise<
         skipped.push({ leaseId: lease.id, reason: error instanceof Error ? error.message : "Error al enviar" });
       }
     } else {
-      sent.push({ leaseId: lease.id, contractNumber: lease.contractNumber, email: tenant.email });
+      skipped.push({ leaseId: lease.id, reason: "SMTP no configurado" });
     }
   }
 

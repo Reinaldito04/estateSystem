@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -21,6 +23,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = await request.json();
     const validatedData = noticeUpdateSchema.parse(body);
 
@@ -48,6 +51,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     await prisma.leaseProposalAndNotice.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {

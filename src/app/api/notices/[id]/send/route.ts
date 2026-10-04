@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +13,7 @@ const AGENCY = process.env.AGENCY_NAME || "Inmobiliaria";
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
 
     if (!isMailerConfigured()) {
       return NextResponse.json(

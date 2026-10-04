@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -5,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { requiredDate, optionalDate, spanishEnum } from "@/lib/schemas";
 import { recordAudit } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/session";
-import { handleRouteError } from "@/lib/domain-error";
+import { handleRouteError, notFoundResponse } from "@/lib/domain-error";
 import { assertTransactionLinks } from "@/lib/payment-rules";
 
 const transactionUpdateSchema = z.object({
@@ -41,6 +42,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const transaction = await prisma.transaction.findUnique({
       where: { id },
       include: {
@@ -66,6 +68,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = await request.json();
     const validatedData = transactionUpdateSchema.parse(body);
     const current = await prisma.transaction.findUnique({ where: { id }, select: { propertyId: true, leaseId: true } });
@@ -108,6 +111,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     await prisma.transaction.delete({ where: { id } });
     const user = await getCurrentUser();
     await recordAudit({ entityType: "Transaction", entityId: id, action: "DELETE", userId: user?.id, request });

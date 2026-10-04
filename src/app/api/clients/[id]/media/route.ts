@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isValidClientId, removeClientFile, storeClientFile } from "@/lib/client-file-storage";
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     if (!isValidClientId(id)) {
       return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
     }

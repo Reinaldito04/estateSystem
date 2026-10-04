@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +25,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const data = updateSchema.parse(await request.json());
     const { password, ...rest } = data;
 
@@ -50,6 +53,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     if (admin.id === id) {
       return NextResponse.json({ error: "No puede desactivar su propio usuario" }, { status: 400 });
     }

@@ -36,7 +36,10 @@ function withEntityId<T extends DocumentRecord>(document: T) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const entityType = searchParams.get("entityType") as EntityKind | null;
+    const entityTypeParam = searchParams.get("entityType");
+    const entityType = (Object.keys(ENTITY_FIELD) as EntityKind[]).includes(entityTypeParam as EntityKind)
+      ? (entityTypeParam as EntityKind)
+      : null;
     const entityId = searchParams.get("entityId");
 
     const where = {

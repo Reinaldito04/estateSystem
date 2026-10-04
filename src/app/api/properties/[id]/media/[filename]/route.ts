@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
@@ -14,6 +16,7 @@ type RouteContext = { params: Promise<{ id: string; filename: string }> };
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id, filename } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     if (!isValidPropertyId(id) || !isValidPropertyFilename(filename)) {
       return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
     }
@@ -56,6 +59,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
     const { id, filename } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const kind = request.nextUrl.searchParams.get("kind");
     if (!isValidPropertyId(id) || !isValidPropertyFilename(filename) || (kind !== "photo" && kind !== "document")) {
       return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });

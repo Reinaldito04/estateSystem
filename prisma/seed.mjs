@@ -57,17 +57,6 @@ async function main() {
     },
   });
 
-  const demoPasswordHash = await bcrypt.hash(process.env.SEED_DEMO_PASSWORD || "hola1234", 10);
-  await prisma.user.create({
-    data: {
-      email: "reybellorin82@gmail.com",
-      fullName: "Rey Bellorin",
-      role: "ADMIN",
-      status: "ACTIVE",
-      passwordHash: demoPasswordHash,
-    },
-  });
-
   const owner = await prisma.clientProfile.create({
     data: {
       fullName: "Propietario de Prueba",

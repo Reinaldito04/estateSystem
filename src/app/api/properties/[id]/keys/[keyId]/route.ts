@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -11,6 +13,7 @@ const keyUpdateSchema = z.object({
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string; keyId: string }> }) {
   try {
     const { id, keyId } = await params;
+    if (!isUuid(id) || !isUuid(keyId)) return notFoundResponse();
     const body = keyUpdateSchema.parse(await request.json());
     const key = await prisma.propertyKey.updateMany({ where: { id: keyId, propertyId: id }, data: body });
     if (key.count === 0) return NextResponse.json({ error: "Registro de llaves no encontrado" }, { status: 404 });

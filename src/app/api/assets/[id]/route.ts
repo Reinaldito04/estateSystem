@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +26,7 @@ const updateSchema = z.object({
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const asset = await prisma.asset.findUnique({
       where: { id },
       include: {
@@ -42,6 +45,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const data = updateSchema.parse(await request.json());
 
     const { purchaseValue, ...rest } = data;
@@ -68,6 +72,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     await prisma.asset.update({ where: { id }, data: { deletedAt: new Date() } });
     await recordAudit({ entityType: "Asset", entityId: id, action: "DELETE", request });
     return NextResponse.json({ success: true });

@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
@@ -44,6 +46,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const notice = await prisma.leaseProposalAndNotice.findUnique({
       where: { id },
       include: {

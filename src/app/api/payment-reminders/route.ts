@@ -11,12 +11,13 @@ export async function POST() {
     }
 
     const result = await sendPaymentReminders();
+    const pendingWithoutMailer = result.skipped.filter((item) => item.reason === "SMTP no configurado").length;
     return NextResponse.json({
       ok: true,
       ...result,
       message: result.mailerConfigured
         ? `Se enviaron ${result.sent.length} recordatorio(s).`
-        : `SMTP no configurado. Se identificaron ${result.sent.length} recordatorio(s) sin enviar.`,
+        : `SMTP no configurado. Se identificaron ${pendingWithoutMailer} recordatorio(s) sin enviar.`,
     });
   } catch (error) {
     return handleRouteError(error, "Error al enviar recordatorios de pago");

@@ -1,14 +1,16 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_LEASE_TEMPLATE, renderLeaseTemplate } from "@/lib/contract-templates";
 import { z } from "zod";
-import { DomainError, handleRouteError } from "@/lib/domain-error";
+import { DomainError, handleRouteError, notFoundResponse } from "@/lib/domain-error";
 
 const draftSchema = z.object({ templateId: z.string().optional() });
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const { templateId } = draftSchema.parse(await request.json().catch(() => ({})));
     const lease = await prisma.lease.findFirst({
       where: { id, deletedAt: null },

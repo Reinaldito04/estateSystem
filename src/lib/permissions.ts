@@ -5,6 +5,7 @@ export const ALL_ROLES: AppRole[] = ["ADMIN", "AGENT", "ASSISTANT", "ACCOUNTANT"
 // Roles allowed to perform write operations, per API prefix.
 const WRITE_MATRIX: { prefix: string; roles: AppRole[] }[] = [
   { prefix: "/api/users", roles: ["ADMIN"] },
+  { prefix: "/api/profile", roles: ALL_ROLES },
   { prefix: "/api/owner-settlements", roles: ["ADMIN", "AGENT", "ACCOUNTANT"] },
   { prefix: "/api/account-statements", roles: ["ADMIN", "AGENT", "ACCOUNTANT"] },
   { prefix: "/api/transactions", roles: ["ADMIN", "AGENT", "ACCOUNTANT"] },

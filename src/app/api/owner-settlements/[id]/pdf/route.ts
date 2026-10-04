@@ -1,9 +1,10 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
 import { createOwnerSettlementDocument } from "@/lib/owner-settlement-pdf";
 import { pdfResponse } from "@/lib/pdf-response";
-import { handleRouteError } from "@/lib/domain-error";
+import { handleRouteError, notFoundResponse } from "@/lib/domain-error";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,7 @@ type SettlementSummary = {
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const settlement = await prisma.ownerSettlement.findUnique({
       where: { id },
       include: { owner: { select: { id: true, fullName: true } } },

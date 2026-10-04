@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, Menu, Sun, Moon, AlertTriangle, ChevronRight } from "lucide-react";
+import { Bell, Menu, Sun, Moon, AlertTriangle, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import { GlobalSearch } from "./global-search";
 
 const breadcrumbMap: Record<string, string> = {
   "/dashboard": "Dashboard",
+  "/dashboard/clientes": "Clientes",
   "/dashboard/propietarios": "Propietarios",
   "/dashboard/inmuebles": "Inmuebles",
   "/dashboard/contratos": "Contratos",
@@ -26,12 +27,22 @@ const breadcrumbMap: Record<string, string> = {
   "/dashboard/calendario": "Calendario",
   "/dashboard/proveedores": "Proveedores",
   "/dashboard/usuarios": "Usuarios",
+  "/dashboard/auditoria": "Auditoría",
   "/dashboard/estados-cuenta": "Estados de Cuenta",
   "/dashboard/documentos": "Documentos",
   "/dashboard/notificaciones": "Notificaciones",
+  "/dashboard/perfil": "Perfil",
 };
 
-export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
+export function Header({
+  onMenuToggle,
+  sidebarCollapsed = false,
+  onToggleSidebar,
+}: {
+  onMenuToggle: () => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+}) {
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -76,19 +87,32 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
   const breadcrumb = getBreadcrumb();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-xl supports-backdrop-filter:bg-background/60">
+    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 shadow-[0_1px_2px_-1px_rgba(15,42,82,0.15)] backdrop-blur-xl supports-backdrop-filter:bg-background/70">
       <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="rounded-xl lg:hidden"
             onClick={onMenuToggle}
             aria-label="Abrir menú"
             title="Abrir menú"
           >
             <Menu className="h-5 w-5" />
           </Button>
+
+          {onToggleSidebar && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden rounded-xl text-muted-foreground hover:text-primary lg:inline-flex"
+              onClick={onToggleSidebar}
+              aria-label={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+              title={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+            </Button>
+          )}
 
           <nav aria-label="Breadcrumb" className="hidden sm:block">
             <ol className="flex items-center gap-1.5 text-sm">
@@ -113,18 +137,18 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
             aria-label="Cambiar tema"
             title="Cambiar tema"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="relative"
+            className="relative rounded-xl"
           >
             <Sun className="h-[1.1rem] w-[1.1rem] rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0" />
             <Moon className="absolute h-[1.1rem] w-[1.1rem] rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100" />
             <span className="sr-only">Toggle theme</span>
           </Button>
 
-          <Button variant="ghost" size="icon" className="relative" aria-label="Notificaciones" title="Notificaciones" asChild>
+          <Button variant="ghost" size="icon" className="relative rounded-xl" aria-label="Notificaciones" title="Notificaciones" asChild>
             <a href="/dashboard/notificaciones">
               <Bell className="h-[1.1rem] w-[1.1rem]" />
               {alertCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground ring-2 ring-background">
+                <span className="absolute -right-0.5 -top-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-destructive text-[10px] font-semibold text-destructive-foreground ring-2 ring-background">
                   {alertCount > 9 ? "9+" : alertCount}
                 </span>
               )}
@@ -136,8 +160,10 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                <Avatar className="h-9 w-9 ring-2 ring-border/40 transition-shadow hover:ring-primary/30">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">{initials || "US"}</AvatarFallback>
+                <Avatar className="h-9 w-9 ring-2 ring-border/40 transition-all hover:ring-primary/40">
+                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-700 text-xs font-semibold text-white">
+                    {initials || "US"}
+                  </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
@@ -148,7 +174,7 @@ export function Header({ onMenuToggle }: { onMenuToggle: () => void }) {
               </div>
               <DropdownMenuSeparator className="my-1.5" />
               <DropdownMenuItem
-                className="flex items-center gap-2.5 rounded-md px-3 py-2 cursor-pointer text-destructive focus:text-destructive"
+                className="flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-destructive focus:text-destructive"
                 onSelect={() => signOut({ callbackUrl: "/login" })}
               >
                 <AlertTriangle className="h-4 w-4" />

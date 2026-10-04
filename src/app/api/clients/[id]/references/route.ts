@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -20,6 +22,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const client = await prisma.clientProfile.findUnique({ where: { id }, select: { id: true } });
 
     if (!client) {

@@ -85,7 +85,7 @@ export default function DocumentsPage() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
-        ...(typeFilter && { entityType: typeFilter }),
+        ...(typeFilter && typeFilter !== "all" && { entityType: typeFilter }),
       });
       const response = await fetch(`/api/documents?${params}`);
       if (response.ok) {

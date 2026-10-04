@@ -216,7 +216,7 @@ export default function LeaseDetailPage({ params }: { params: Promise<{ id: stri
     context.lineWidth = 2.5;
     context.lineCap = "round";
     context.lineJoin = "round";
-    context.strokeStyle = "#193b35";
+    context.strokeStyle = "#0b2545";
     canvas.setPointerCapture(event.pointerId);
   };
 

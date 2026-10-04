@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -6,7 +7,7 @@ import { Prisma } from "@prisma/client";
 import { calculateLeaseBalance } from "@/lib/lease-balance";
 import { recordAudit } from "@/lib/audit";
 import { getCurrentUser } from "@/lib/session";
-import { handleRouteError } from "@/lib/domain-error";
+import { handleRouteError, notFoundResponse } from "@/lib/domain-error";
 import {
   assertDateOrder,
   assertGuarantor,
@@ -71,6 +72,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const lease = await prisma.lease.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -150,6 +152,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = await request.json();
     const validatedData = leaseUpdateSchema.parse(body);
     const current = await prisma.lease.findFirst({ where: { id, deletedAt: null } });
@@ -331,6 +334,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
 
     const lease = await prisma.lease.findFirst({
       where: { id, deletedAt: null },

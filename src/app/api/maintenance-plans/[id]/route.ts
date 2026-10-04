@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -22,6 +24,7 @@ const updateSchema = z.object({
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const data = updateSchema.parse(await request.json());
     const plan = await prisma.maintenancePlan.update({
       where: { id },
@@ -44,6 +47,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     await prisma.maintenancePlan.update({ where: { id }, data: { isActive: false } });
     await recordAudit({ entityType: "MaintenancePlan", entityId: id, action: "DELETE", request });
     return NextResponse.json({ success: true });

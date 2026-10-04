@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -34,6 +36,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const client = await prisma.clientProfile.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -109,6 +112,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = await request.json();
     const validatedData = clientUpdateSchema.parse(body);
     const { monthlyIncome, maxBudget, ...clientPayload } = validatedData;
@@ -166,6 +170,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
 
     const client = await prisma.clientProfile.findFirst({ where: { id, deletedAt: null } });
 

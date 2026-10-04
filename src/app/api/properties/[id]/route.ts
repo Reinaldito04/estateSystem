@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isValidPropertyFilename, removePropertyFile } from "@/lib/property-file-storage";
@@ -50,6 +52,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const property = await prisma.property.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -118,6 +121,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = await request.json();
     const validatedData = propertyUpdateSchema.parse(body);
 
@@ -175,6 +179,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
 
     const property = await prisma.property.findFirst({
       where: { id, deletedAt: null },

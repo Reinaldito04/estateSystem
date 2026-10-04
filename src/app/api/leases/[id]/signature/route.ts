@@ -1,10 +1,11 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { recordAudit } from "@/lib/audit";
-import { DomainError, handleRouteError } from "@/lib/domain-error";
+import { DomainError, handleRouteError, notFoundResponse } from "@/lib/domain-error";
 import { getCurrentUser } from "@/lib/session";
 import { assertNoActiveOverlap, assertStatusTransition, syncPropertyOccupancy } from "@/lib/lease-workflow";
 
@@ -35,6 +36,7 @@ function documentHash(content: string) {
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const data = signatureSchema.parse(await request.json());
     const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || null;
     const lease = await prisma.lease.findFirst({

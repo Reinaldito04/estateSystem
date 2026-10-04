@@ -1,3 +1,4 @@
+import { isUuid } from "@/lib/route-params";
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
@@ -6,7 +7,7 @@ import { DEFAULT_LEASE_TEMPLATE, renderLeaseTemplate } from "@/lib/contract-temp
 import { createTextDocument } from "@/lib/lease-document-pdf";
 import { pdfResponse } from "@/lib/pdf-response";
 import { getCurrentUser } from "@/lib/session";
-import { handleRouteError } from "@/lib/domain-error";
+import { handleRouteError, notFoundResponse } from "@/lib/domain-error";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,7 @@ function resolveContent(lease: NonNullable<Awaited<ReturnType<typeof loadLease>>
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const lease = await loadLease(id);
     if (!lease) return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
     const content = resolveContent(lease);
@@ -70,6 +72,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const lease = await loadLease(id);
     if (!lease) return NextResponse.json({ error: "Contrato no encontrado" }, { status: 404 });
     const content = resolveContent(lease);

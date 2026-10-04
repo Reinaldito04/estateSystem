@@ -42,10 +42,17 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+      }
+      // Allow the profile page to refresh the display name during the session.
+      if (trigger === "update" && session?.user) {
+        const nextName = (session.user as { name?: string }).name;
+        if (typeof nextName === "string" && nextName.trim()) {
+          token.name = nextName.trim();
+        }
       }
       // Revalidate the account status periodically so suspended/deactivated
       // users lose access before their JWT expires.

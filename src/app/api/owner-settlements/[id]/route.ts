@@ -1,8 +1,9 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { handleRouteError } from "@/lib/domain-error";
+import { handleRouteError, notFoundResponse } from "@/lib/domain-error";
 import { getCurrentUser } from "@/lib/session";
 
 const updateSchema = z.object({
@@ -13,6 +14,7 @@ const updateSchema = z.object({
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const settlement = await prisma.ownerSettlement.findUnique({
       where: { id },
       include: {
@@ -30,6 +32,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = updateSchema.parse(await request.json());
 
     const existing = await prisma.ownerSettlement.findUnique({ where: { id } });

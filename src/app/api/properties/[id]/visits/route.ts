@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -16,6 +18,7 @@ const visitSchema = z.object({
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isUuid(id)) return notFoundResponse();
   const visits = await prisma.propertyVisit.findMany({ where: { propertyId: id }, orderBy: { scheduledAt: "desc" } });
   return NextResponse.json({ data: visits.map((visit) => ({ ...visit, status: visitStatusToUi(visit.status) })) });
 }
@@ -23,6 +26,7 @@ export async function GET(_: NextRequest, { params }: { params: Promise<{ id: st
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = visitSchema.parse(await request.json());
     const visit = await prisma.propertyVisit.create({ data: { ...body, status: toVisitStatus(body.status), propertyId: id } });
     return NextResponse.json({ ...visit, status: visitStatusToUi(visit.status) }, { status: 201 });

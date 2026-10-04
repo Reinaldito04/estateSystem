@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { removePropertyFile, storePropertyFile, isValidPropertyId } from "@/lib/property-file-storage";
@@ -27,6 +29,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     if (!isValidPropertyId(id)) {
       return NextResponse.json({ error: "Inmueble no encontrado" }, { status: 404 });
     }

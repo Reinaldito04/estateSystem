@@ -1,3 +1,5 @@
+import { notFoundResponse } from "@/lib/domain-error";
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
@@ -42,6 +44,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const property = await prisma.property.findUnique({
       where: { id },
       select: {
@@ -71,6 +74,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = interestUpdateSchema.parse(await request.json());
     const existing = await prisma.propertyInterest.findFirst({
       where: { id: body.id, propertyId: id },
@@ -99,6 +103,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = crmRecordSchema.parse(await request.json());
     const propertyExists = await prisma.property.findUnique({ where: { id }, select: { id: true } });
 
@@ -148,6 +153,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const body = deleteSchema.parse(await request.json());
     const where = { id: body.id, propertyId: id };
     const result = body.type === "interest"

@@ -1,15 +1,17 @@
+import { isUuid } from "@/lib/route-params";
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
 import { createInventoryDocument } from "@/lib/lease-document-pdf";
 import { pdfResponse } from "@/lib/pdf-response";
-import { handleRouteError } from "@/lib/domain-error";
+import { handleRouteError, notFoundResponse } from "@/lib/domain-error";
 
 export const runtime = "nodejs";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+    if (!isUuid(id)) return notFoundResponse();
     const property = await prisma.property.findFirst({
       where: { id, deletedAt: null },
       include: { assets: { where: { deletedAt: null }, orderBy: { name: "asc" } } },

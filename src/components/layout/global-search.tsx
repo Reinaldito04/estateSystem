@@ -52,7 +52,7 @@ export function GlobalSearch() {
       const endpoints = [
         { url: `/api/properties?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "property" as const },
         { url: `/api/owners?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "owner" as const },
-        { url: `/api/clients?role=TENANT&search=${encodeURIComponent(searchQuery)}&limit=3`, type: "client" as const },
+        { url: `/api/clients?search=${encodeURIComponent(searchQuery)}&limit=4`, type: "client" as const },
         { url: `/api/leases?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "lease" as const },
         { url: `/api/transactions?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "transaction" as const },
         { url: `/api/issues?search=${encodeURIComponent(searchQuery)}&limit=3`, type: "issue" as const },
@@ -64,13 +64,15 @@ export function GlobalSearch() {
             const res = await fetch(endpoint.url, { signal: controller.signal });
             if (!res.ok) return [];
             const data = await res.json();
-            return data.data.map((item: Record<string, unknown>) => ({
-              id: item.id as string,
-              type: endpoint.type,
-              title: getTitle(endpoint.type, item),
-              subtitle: getSubtitle(endpoint.type, item),
-              href: getHref(endpoint.type, item),
-            }));
+            return (data.data as Record<string, unknown>[])
+              .filter((item) => endpoint.type !== "client" || item.role !== "OWNER")
+              .map((item) => ({
+                id: item.id as string,
+                type: endpoint.type,
+                title: getTitle(endpoint.type, item),
+                subtitle: getSubtitle(endpoint.type, item),
+                href: getHref(endpoint.type, item),
+              }));
           } catch {
             return [];
           }
